@@ -1,0 +1,51 @@
+{
+  "bikeProfiles": [
+    {
+      "Name": "Triathlon bike (default)",
+      "BikeWeightInKg": 8.0,
+      "AirResistanceCoefficient": 0.76,
+      "ProjectedFrontalSurfaceInM2": 0.33,
+      "TyreCircumferenceInMeters": 2.133,
+      "TyreRollingResistance": 0.0027,
+      "CreationDate": "0001-01-01T00:00:00Z",
+      "CreatedBy": null,
+      "ModificationDate": null,
+      "ModifiedBy": null,
+      "ModificationReason": null,
+      "DocumentType": null,
+      "DocumentVersion": null
+    },
+    {
+      "Name": "Mountain bike (default)",
+      "BikeWeightInKg": 12.0,
+      "AirResistanceCoefficient": 1.0,
+      "ProjectedFrontalSurfaceInM2": 0.6,
+      "TyreCircumferenceInMeters": 2.1,
+      "TyreRollingResistance": 0.008,
+      "CreationDate": "0001-01-01T00:00:00Z",
+      "CreatedBy": null,
+      "ModificationDate": null,
+      "ModifiedBy": null,
+      "ModificationReason": null,
+      "DocumentType": null,
+      "DocumentVersion": null
+    },
+    {
+      "Name": "Racing bike (default)",
+      "BikeWeightInKg": 7.5,
+      "AirResistanceCoefficient": 0.85,
+      "ProjectedFrontalSurfaceInM2": 0.4,
+      "TyreCircumferenceInMeters": 2.133,
+      "TyreRollingResistance": 0.0027,
+      "CreationDate": "0001-01-01T00:00:00Z",
+      "CreatedBy": null,
+      "ModificationDate": null,
+      "ModifiedBy": null,
+      "ModificationReason": null,
+      "DocumentType": null,
+      "DocumentVersion": null
+    }
+  ],
+  "imageUrl": "https://s3.amazonaws.com/garmin-connect-prod/profile_images/454c9891-4fca-4440-b788-38df0b3afd9d-prfr.png",
+  "registrationDate": "2024-11-07T05:40:06.7991093Z"
+}

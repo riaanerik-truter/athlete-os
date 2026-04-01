@@ -1,0 +1,20 @@
+{
+  "name": "athleteos-coaching-engine",
+  "version": "1.0.0",
+  "description": "Athlete OS coaching engine — planning, scoring, and AI coach",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.37.0",
+    "axios": "^1.7.9",
+    "csv-parse": "^6.2.1",
+    "dotenv": "^16.4.7",
+    "node-cron": "^3.0.3",
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0"
+  }
+}

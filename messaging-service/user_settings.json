@@ -1,0 +1,12 @@
+{
+  "proactive_scale": 3,
+  "morning_digest_time": "09:00",
+  "weekly_summary_day": "sunday",
+  "weekly_chart_enabled": false,
+  "channels": {
+    "discord": { "enabled": true },
+    "telegram": { "enabled": false },
+    "whatsapp": { "enabled": false },
+    "web_chat": { "enabled": true, "port": 3001 }
+  }
+}

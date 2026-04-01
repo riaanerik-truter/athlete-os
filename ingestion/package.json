@@ -1,0 +1,20 @@
+{
+  "name": "athleteos-ingestion",
+  "version": "1.0.0",
+  "description": "Athlete OS data ingestion service",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "chokidar": "^4.0.3",
+    "csv-parse": "^5.5.6",
+    "dotenv": "^16.4.7",
+    "node-cron": "^3.0.3",
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0"
+  }
+}

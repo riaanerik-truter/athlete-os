@@ -1,0 +1,18 @@
+{
+  "jobs": {
+    "ingestion_poller":  { "mode": "auto", "cron": "*/2 * * * *"  },
+    "summary_poller":    { "mode": "auto", "cron": "*/5 * * * *"  },
+    "instruct_poller":   { "mode": "auto", "cron": "*/5 * * * *"  },
+    "discovery_poller":  { "mode": "auto", "cron": "*/10 * * * *" },
+    "topic_suggester":   { "mode": "auto", "cron": "0 8 * * *"    }
+  },
+  "ingestion": {
+    "chunk_size_words":  400,
+    "chunk_overlap_words": 50,
+    "embedding_batch_size": 20
+  },
+  "search": {
+    "default_limit": 5,
+    "max_limit": 20
+  }
+}

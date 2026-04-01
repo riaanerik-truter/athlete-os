@@ -1,0 +1,13 @@
+{
+  "engine_mode": "structured",
+  "context_mode": "balanced",
+  "jobs": {
+    "weekly_planner":      { "mode": "auto", "cron": "0 6 * * 1" },
+    "snapshot_writer":     { "mode": "auto", "cron": "30 20 * * 0" },
+    "progression_checker": { "mode": "auto", "cron": "0 21 * * 0" },
+    "daily_digest":        { "mode": "auto", "cron": "0 9 * * *", "time": "09:00" }
+  },
+  "messaging": {
+    "channel": "whatsapp"
+  }
+}

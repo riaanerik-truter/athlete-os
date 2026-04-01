@@ -1,0 +1,15 @@
+{
+  "strava": {
+    "mode": "manual",
+    "time": "06:00"
+  },
+  "health_form_nudge": {
+    "mode": "manual",
+    "time": "09:00"
+  },
+  "file_watcher": {
+    "mode": "auto",
+    "watched_activities_path": "../watched-activities",
+    "watched_bulk_path": "../watched-bulk"
+  }
+}

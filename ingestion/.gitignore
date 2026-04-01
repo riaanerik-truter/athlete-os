@@ -1,0 +1,6 @@
+node_modules/
+.env
+*.log
+watched-activities/processed/
+watched-activities/failed/
+watched-bulk/processed/

@@ -1,0 +1,16 @@
+services:
+  db:
+    image: timescale/timescaledb-ha:pg16
+    container_name: athleteos_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: yourpassword
+      POSTGRES_DB: athleteos
+    ports:
+      - "5432:5432"
+    volumes:
+      - athleteos_pgdata:/home/postgres/pgdata/data
+
+volumes:
+  athleteos_pgdata:
