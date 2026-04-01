@@ -511,4 +511,25 @@ Messaging service implemented in `messaging-service/`. Node.js 24, ESM. All writ
 **Bug fixed during build:**
 - `discord.js` — `clientReady` → `ready` (wrong event name in discord.js v14; ready handler was never firing, `_channel` always null, all sends silently dropped). `messageCreate` listener moved inside `ready` callback with `removeAllListeners` guard.
 
-**Next: return to Claude.ai to design the snapshot export service and frontend before continuing to build.**
+the snapshot export service is deferred to V2
+
+Frontend build complete. All 19 steps done.
+Components: Navbar, ThemeToggle, InfoTooltip, KpiCard,
+ReadinessCard, FitnessChart, SessionList, RacePrediction,
+GoalProgress, HealthMetrics, DiaryPanel, UsageSummary,
+SettingsPanel, ChatWidget, MorningForm, ResourceList,
+ResourceCard, ResourceDetail, DiscoverPanel, Profile.
+System prompt personality updated.
+
+Build status:
+1. Storage schema ✅
+2. API layer ✅
+3. Ingestion service ✅
+4. Coaching engine ✅
+5. Knowledge engine ✅
+6. Messaging service ✅
+7. Snapshot export service ← deferred V2
+8. Frontend ✅
+9. Installer script ← final item, to be designed in Claude.ai
+
+Next: return to Claude.ai to design the installer script.

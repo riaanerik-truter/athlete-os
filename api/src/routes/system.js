@@ -10,9 +10,10 @@
  */
 
 import { Router } from 'express';
+import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { requireApiKey } from '../middleware/auth.js';
-import { getAthlete } from '../db/athlete.js';
+import { getAthlete, updateAthlete } from '../db/athlete.js';
 import { getSyncStatus } from '../db/sync.js';
 
 const router = Router();
@@ -87,6 +88,47 @@ router.get('/config', requireApiKey, async (req, res, next) => {
       connected_sources:  [...sourceSet],
       last_sync
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /config — update athlete-level settings fields
+// Service-level settings (engine_mode, context_mode, proactive_scale) are
+// stored client-side in localStorage; only DB-backed fields accepted here.
+// ---------------------------------------------------------------------------
+
+const configPatchSchema = z.object({
+  timezone:        z.string().optional(),
+  whatsapp_number: z.string().optional(),
+}).strict();
+
+router.patch('/config', requireApiKey, async (req, res, next) => {
+  try {
+    const parsed = configPatchSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      return res.status(422).json({
+        error: { code: 'VALIDATION_ERROR', message: issue.message, field: issue.path.join('.') || null }
+      });
+    }
+
+    const update = parsed.data;
+    const keys   = Object.keys(update);
+
+    if (keys.length === 0) {
+      return res.json({ updated: [] });
+    }
+
+    const updated = await updateAthlete(pool, update);
+    if (!updated) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'Athlete not found', field: null }
+      });
+    }
+
+    res.json({ updated: keys });
   } catch (err) {
     next(err);
   }
