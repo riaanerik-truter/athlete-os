@@ -88,8 +88,14 @@ async function buildGatePreamble(period) {
 // ---------------------------------------------------------------------------
 
 async function saveMessage(role, content) {
+  // Map to the roles the API schema accepts: athlete | coach | system
+  const mappedRole = (role === 'user') ? 'athlete' : (role === 'assistant') ? 'coach' : role;
   try {
-    await apiClient.post('/conversations', { role, content });
+    await apiClient.post('/conversations', {
+      role:       mappedRole,
+      content,
+      message_ts: new Date().toISOString(),
+    });
   } catch (err) {
     log.warn({ err: err.message }, 'failed to save conversation message');
   }

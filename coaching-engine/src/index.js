@@ -10,12 +10,14 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import cron from 'node-cron';
 import pino from 'pino';
+import express from 'express';
 
 import { runWeeklyPlanner }      from './jobs/weeklyPlanner.js';
 import { runSnapshotWriter }     from './jobs/snapshotWriter.js';
 import { runProgressionChecker } from './jobs/progressionChecker.js';
 import { runDailyDigest }        from './jobs/dailyDigest.js';
 import { apiClient }             from './api/client.js';
+import { handleMessage }         from './coach/coachHandler.js';
 
 const log  = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 const __dir = dirname(fileURLToPath(import.meta.url));
@@ -116,6 +118,56 @@ async function checkForTrigger() {
 }
 
 // ---------------------------------------------------------------------------
+// HTTP server — receives real-time message requests from the messaging service
+// ---------------------------------------------------------------------------
+
+function startHttpServer(settings) {
+  const port = parseInt(process.env.COACHING_ENGINE_PORT ?? '3002', 10);
+  const apiKey = process.env.API_KEY;
+
+  const app = express();
+  app.use(express.json());
+
+  // Auth middleware — same key used by the coaching engine to call the API layer
+  app.use((req, res, next) => {
+    const key = req.headers['x-api-key'];
+    if (!key || key !== apiKey) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    next();
+  });
+
+  // POST /message — called by the messaging service for every inbound chat message
+  app.post('/message', async (req, res) => {
+    const { athleteId, message, channel } = req.body ?? {};
+    if (!message) {
+      return res.status(422).json({ error: 'message is required' });
+    }
+
+    try {
+      const result = await handleMessage(message, athleteId, {
+        engineMode:  settings.engine_mode  ?? 'guided',
+        contextMode: settings.context_mode ?? 'balanced',
+      });
+      res.json({ response: result.reply });
+    } catch (err) {
+      log.error({ err: err.message }, 'POST /message handler failed');
+      res.status(500).json({ error: 'Coach handler failed' });
+    }
+  });
+
+  const server = app.listen(port, () => {
+    log.info({ port }, 'coaching engine HTTP server listening');
+  });
+
+  server.on('error', err => {
+    log.error({ err: err.message }, 'HTTP server error');
+  });
+
+  return server;
+}
+
+// ---------------------------------------------------------------------------
 // Main startup
 // ---------------------------------------------------------------------------
 
@@ -168,6 +220,9 @@ async function start() {
   const triggerInterval = setInterval(checkForTrigger, 30_000);
   log.info('trigger listener started (30s poll)');
 
+  // Start HTTP server for real-time message handling
+  const httpServer = startHttpServer(settings);
+
   // Startup summary
   log.info({
     jobs: tasks.map(t => t.name),
@@ -179,6 +234,7 @@ async function start() {
   const shutdown = (signal) => {
     log.info({ signal }, 'shutdown signal received');
     clearInterval(triggerInterval);
+    httpServer.close();
     for (const { name, task } of tasks) {
       task.stop();
       log.info({ job: name }, 'cron task stopped');

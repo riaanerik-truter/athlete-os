@@ -148,7 +148,9 @@ async function classifyByAI(message, athleteId) {
     ]
   });
 
-  const raw = response.content[0]?.text?.trim() ?? '{}';
+  const rawText = response.content[0]?.text?.trim() ?? '{}';
+  // Strip markdown code fences if present (e.g. ```json ... ```)
+  const raw = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
   const inputTokens = response.usage?.input_tokens  ?? 0;
   const outTokens   = response.usage?.output_tokens ?? 0;
   const costUsd     = inputTokens * HAIKU_INPUT_COST_PER_TOKEN + outTokens * HAIKU_OUTPUT_COST_PER_TOKEN;

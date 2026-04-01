@@ -13,6 +13,21 @@ import { apiClient } from '../api/client.js';
 import { SYSTEM_PROMPT } from './systemPrompt.js';
 
 // ---------------------------------------------------------------------------
+// Role mapper — Anthropic only accepts 'user' or 'assistant'
+// DB stores 'athlete' / 'coach' / 'system'; map before sending to API
+// ---------------------------------------------------------------------------
+
+function mapToAnthropicRole(role) {
+  return (role === 'user' || role === 'athlete') ? 'user' : 'assistant';
+}
+
+function normaliseMessages(messages) {
+  return messages
+    .filter(m => m.role !== 'system')
+    .map(m => ({ role: mapToAnthropicRole(m.role), content: m.content }));
+}
+
+// ---------------------------------------------------------------------------
 // Token estimation (pre-call budget check only)
 // ---------------------------------------------------------------------------
 
@@ -125,7 +140,7 @@ export async function buildLeanContext(conversationHistory) {
   return {
     mode:    'lean',
     system:  systemContent,
-    messages: conversationHistory.slice(-5),
+    messages: normaliseMessages(conversationHistory.slice(-5)),
     _meta: {
       sections,
       token_estimates: {
@@ -171,7 +186,7 @@ export async function buildBalancedContext(conversationHistory) {
   return {
     mode:    'balanced',
     system:  systemParts,
-    messages: conversationHistory.slice(-10),
+    messages: normaliseMessages(conversationHistory.slice(-10)),
     _meta: {
       sections,
       token_estimates: {
@@ -231,7 +246,7 @@ export async function buildFullContext(conversationHistory, knowledgeChunks = []
   return {
     mode:    'full',
     system:  systemParts,
-    messages: conversationHistory.slice(-20),
+    messages: normaliseMessages(conversationHistory.slice(-20)),
     _meta: {
       sections,
       token_estimates: {

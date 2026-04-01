@@ -58,49 +58,45 @@ async function logMessage(role, content, channel) {
 }
 
 // ---------------------------------------------------------------------------
-// Coaching engine poll
-// The coaching engine is a separate process that polls the conversation table
-// on a 30-second cycle. messageHandler logs the inbound user message, then
-// polls the conversation table for up to 15 seconds waiting for a coach reply.
-// If the coaching engine hasn't responded in time, a holding message is returned.
+// Coaching engine — direct HTTP call
+// POST to coaching engine's /message endpoint for real-time responses.
+// COACHING_ENGINE_URL defaults to http://localhost:3002
 // ---------------------------------------------------------------------------
 
+const COACHING_ENGINE_URL = process.env.COACHING_ENGINE_URL ?? 'http://localhost:3002';
+const COACHING_ENGINE_TIMEOUT_MS = 60_000; // Anthropic calls can take up to ~30s
+
 async function callCoachingEngine(athleteId, message, channel) {
-  // The coaching engine doesn't yet expose an HTTP server.
-  // In the integrated deployment (all services co-located), we import
-  // the coaching engine handler directly.
-  //
-  // For now: post the message to the conversation table and trigger
-  // the coaching engine via POST /sync/trigger.
-  // The coaching engine will pick this up on its next poll cycle.
-  //
-  // Phase 2: add a lightweight HTTP endpoint to the coaching engine
-  // and call it here for real-time responses.
-
-  // The coaching engine polls the conversation table independently (30s cycle).
-  // We log the user message above, then poll here for up to 15s for a coach reply.
-  // If the coaching engine hasn't responded in time, return a holding message.
   try {
-    // Snapshot the latest coach message before we start polling.
-    // Use limit=10 so we look past the athlete message we just logged.
-    const before = await apiClient.get('/conversations?limit=10');
-    const lastCoachMsg = (before?.data ?? []).find(m => m.role === 'coach')?.content ?? null;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), COACHING_ENGINE_TIMEOUT_MS);
 
-    const deadline = Date.now() + 15_000;
-    while (Date.now() < deadline) {
-      await new Promise(r => setTimeout(r, 1_500));
-      const conv = await apiClient.get('/conversations?limit=5');
-      const messages = conv?.data ?? [];
-      const latest = messages.find(m => m.role === 'coach');
-      if (latest && latest.content !== lastCoachMsg) {
-        return latest.content;
-      }
+    const res = await fetch(`${COACHING_ENGINE_URL}/message`, {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key':    process.env.API_KEY ?? '',
+      },
+      body:   JSON.stringify({ athleteId, message, channel }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timer);
+
+    if (!res.ok) {
+      log.error({ status: res.status, url: COACHING_ENGINE_URL }, 'coaching engine returned error');
+      return "Sorry, the coaching engine returned an error. Please try again.";
     }
 
-    return "I'm processing your message. I'll respond shortly.";
+    const data = await res.json();
+    return data.response ?? '';
   } catch (err) {
-    log.error({ err: err.message }, 'coaching engine poll failed');
-    return "Sorry, I had trouble processing that. Please try again.";
+    if (err.name === 'AbortError') {
+      log.error('coaching engine request timed out');
+      return "The coach is taking longer than expected. Please try again in a moment.";
+    }
+    log.error({ err: err.message }, 'coaching engine call failed');
+    return "Sorry, I couldn't reach the coaching engine. Check that it is running.";
   }
 }
 
