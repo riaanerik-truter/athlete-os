@@ -242,14 +242,8 @@ export default function SettingsPanel({ open, onClose }) {
 
           {/* 3. Data sync */}
           <Section title="Data sync">
-            <Row label="Garmin" hint={`Last sync: ${lastSync('garmin_activities')}`}>
-              <button
-                onClick={() => triggerSync('garmin_activities')}
-                disabled={saving}
-                className="text-xs px-3 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
-              >
-                Sync now
-              </button>
+            <Row label="Garmin" hint="Drop .fit or .json files into watched-activities/">
+              <span className="text-xs text-green-600 dark:text-green-400">File watcher active</span>
             </Row>
             <Row label="Strava" hint={`Last sync: ${lastSync('strava')}`}>
               <button
@@ -259,9 +253,6 @@ export default function SettingsPanel({ open, onClose }) {
               >
                 Sync now
               </button>
-            </Row>
-            <Row label="File watcher" hint="Drop .json/.fit files in watched-activities/">
-              <span className="text-xs text-green-600 dark:text-green-400">Active</span>
             </Row>
           </Section>
 

@@ -48,7 +48,7 @@ export default function BugReporter() {
       {/* Fixed trigger button — bottom-left, above any other fixed UI */}
       <button
         onClick={handleOpen}
-        className="fixed bottom-6 left-6 z-30 w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors flex items-center justify-center shadow"
+        className="fixed bottom-6 left-6 z-50 w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors flex items-center justify-center shadow"
         title="Report a bug or idea"
         aria-label="Report a bug or idea"
       >

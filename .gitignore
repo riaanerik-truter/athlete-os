@@ -3,5 +3,5 @@ node_modules/
 *.log
 watched-activities/processed/
 watched-activities/failed/
-watched-bulk/processed/
+watched-bulk/
 sample-data/

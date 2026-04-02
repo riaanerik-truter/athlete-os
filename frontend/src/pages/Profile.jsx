@@ -332,7 +332,7 @@ function OnboardingSection({ athlete }) {
 // ---------------------------------------------------------------------------
 
 export default function Profile() {
-  const { athlete, reload: reloadAthlete } = useAthlete()
+  const { athlete, loading, error, reload: reloadAthlete } = useAthlete()
 
   const { data: methodologiesRes } = useFetch('/methodologies')
   const { data: testsRes }         = useFetch('/fitness/tests?limit=20')
@@ -340,10 +340,32 @@ export default function Profile() {
   const methodologies = Array.isArray(methodologiesRes) ? methodologiesRes : (methodologiesRes?.data ?? [])
   const fieldTests    = Array.isArray(testsRes) ? testsRes : (testsRes?.data ?? [])
 
-  if (!athlete) {
+  if (loading) {
     return (
       <main className="max-w-screen-md mx-auto px-4 py-8">
         <p className="text-gray-400">Loading profile…</p>
+      </main>
+    )
+  }
+
+  if (error || !athlete) {
+    return (
+      <main className="max-w-screen-md mx-auto px-4 py-8">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-5">
+          <p className="text-sm font-semibold text-red-700 dark:text-red-400 mb-1">Could not load profile</p>
+          <p className="text-sm text-red-600 dark:text-red-300">
+            {error ?? 'API did not return an athlete record. Make sure the API is running on port 3000 and the athlete record exists.'}
+          </p>
+          <p className="text-xs text-red-500 dark:text-red-400 mt-2 font-mono">
+            GET /api/v1/athlete · X-API-Key: sk-local-kzS5FHuBZ6TNI214
+          </p>
+          <button
+            onClick={reloadAthlete}
+            className="mt-3 text-xs px-3 py-1.5 rounded-lg bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
       </main>
     )
   }

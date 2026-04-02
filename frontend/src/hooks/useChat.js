@@ -117,15 +117,34 @@ export function useChat() {
     }
   }, [open])
 
-  // Send a text message (+ optional file)
-  const send = useCallback((text, file = null) => {
+  // Send a text message (+ optional file).
+  // If WebSocket is open, send via WS (messaging service handles routing + coach response).
+  // If WebSocket is not connected, fall back to POST /conversations so the message is
+  // at least persisted — the user sees their own message logged even without a coach reply.
+  const send = useCallback(async (text, file = null) => {
     if (!text?.trim() && !file) return
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
 
-    const payload = { text }
-    if (file) payload.file = file
-
-    wsRef.current.send(JSON.stringify(payload))
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      const payload = { text }
+      if (file) payload.file = file
+      wsRef.current.send(JSON.stringify(payload))
+    } else {
+      // HTTP fallback — log the message and show it locally
+      const newMsg = {
+        id:        crypto.randomUUID(),
+        role:      'user',
+        content:   text,
+        timestamp: new Date().toISOString(),
+        channel:   'web',
+      }
+      setMessages(prev => [...prev, newMsg])
+      try {
+        await axios.post('/api/v1/conversations',
+          { role: 'athlete', content: text, channel: 'web' },
+          { headers: API_HEADERS }
+        )
+      } catch { /**/ }
+    }
   }, [])
 
   return {

@@ -1,6 +1,6 @@
 import chokidar from 'chokidar';
 import { resolve, extname, basename } from 'path';
-import { rename, mkdir } from 'fs/promises';
+import { rename, mkdir, readdir } from 'fs/promises';
 import { parseGarminBulkFile } from '../parsers/garminBulkParser.js';
 import { parseTpCsv } from '../parsers/tpCsvParser.js';
 import { alreadyImported, appendLog } from '../utils/bulkImportLog.js';
@@ -39,8 +39,11 @@ export function startBulkWatcher(watchPath) {
     depth: 0,
   });
 
-  watcher.on('add', filePath => handleBulkFile(filePath, processedDir));
-  watcher.on('error', err => log.error({ err: err.message }, 'bulk watcher error'));
+  watcher.on('add',    filePath => handleBulkFile(filePath, processedDir));
+  // addDir fires when a folder is dropped into watched-bulk/ (e.g. a Garmin Connect export folder).
+  // Scan it immediately for supported files and process each one.
+  watcher.on('addDir', dirPath  => handleBulkDir(dirPath, processedDir));
+  watcher.on('error',  err     => log.error({ err: err.message }, 'bulk watcher error'));
 
   log.info({ watchPath }, 'bulk watcher started');
   return watcher;
@@ -104,6 +107,40 @@ async function handleBulkFile(filePath, processedDir) {
     skipCount,
     error: errorMsg,
   });
+}
+
+/**
+ * Handles a folder dropped into watched-bulk/.
+ * Recursively walks the directory tree and processes every .json and .csv file found.
+ * The root watched-bulk/ itself fires addDir on startup — skip it.
+ */
+async function handleBulkDir(dirPath, processedDir) {
+  if (dirPath === resolve(processedDir, '..')) return  // skip watched-bulk root itself
+
+  log.info({ dirPath }, 'bulk watcher: folder detected — scanning for importable files');
+
+  async function walkAndProcess(dir) {
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch (err) {
+      log.warn({ dir, err: err.message }, 'bulk watcher: could not read directory');
+      return;
+    }
+    for (const entry of entries) {
+      const fullPath = resolve(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walkAndProcess(fullPath);
+      } else if (entry.isFile()) {
+        const ext = extname(entry.name).toLowerCase();
+        if (['.json', '.csv'].includes(ext)) {
+          await handleBulkFile(fullPath, processedDir);
+        }
+      }
+    }
+  }
+
+  await walkAndProcess(dirPath);
 }
 
 async function moveFile(src, destDir, filename) {

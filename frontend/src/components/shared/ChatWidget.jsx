@@ -214,7 +214,7 @@ export default function ChatWidget() {
             />
             <button
               onClick={handleSend}
-              disabled={!input.trim() || !connected}
+              disabled={!input.trim()}
               className="p-2 rounded-lg bg-accent dark:bg-accent-dark text-white disabled:opacity-40 hover:opacity-90 transition-opacity"
             >
               <Send className="w-4 h-4" />
