@@ -213,9 +213,9 @@ We build in this order. Do not start a layer until the previous one is complete 
 4. **Coaching engine** — AI logic, methodology rules, session planning ← COMPLETE
 5. **Knowledge engine** — ingest, chunk, embed, semantic search ← COMPLETE
 6. **Messaging service** — Discord, WhatsApp, web chat ← COMPLETE
-7. **Snapshot export service** — not yet designed or built
-8. **Frontend** — dashboard, knowledge browser ← not yet designed or built
-9. **Installer script** — not yet designed or built
+7. **Snapshot export service** — deferred to V2
+8. **Frontend** — dashboard, knowledge browser ← COMPLETE
+9. **Installer script** — install.ps1, start.bat, stop.bat, WelcomeTour.jsx ← COMPLETE
 
 ---
 
@@ -530,6 +530,7 @@ Build status:
 6. Messaging service ✅
 7. Snapshot export service ← deferred V2
 8. Frontend ✅
-9. Installer script ← final item, to be designed in Claude.ai
+9. Installer script ✅
 
-Next: return to Claude.ai to design the installer script.
+**Athlete OS V1 is complete.** All 8 active layers built and committed.
+Commit: b6d226f — installer, welcome tour, README, setup guide - V1 complete
