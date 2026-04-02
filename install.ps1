@@ -125,14 +125,16 @@ docker run -d `
     -p 5432:5432 `
     timescale/timescaledb-ha:pg16 | Out-Null
 
-# Wait for healthy
+# Wait until the database is ready to accept connections
 Write-Host "     Waiting for database to be ready..." -ForegroundColor Gray
 $attempts = 0
 do {
-    Start-Sleep 2
-    $attempts++
-    $health = docker exec athleteos_db pg_isready -U postgres 2>&1
-} while ($health -notmatch "accepting connections" -and $attempts -lt 30)
+    $ready = docker exec athleteos_db pg_isready -U postgres 2>&1
+    if ($ready -notmatch "accepting connections") {
+        Start-Sleep 2
+        $attempts++
+    }
+} while ($ready -notmatch "accepting connections" -and $attempts -lt 30)
 
 if ($attempts -ge 30) {
     Write-Err "Database did not become ready in time. Check Docker logs: docker logs athleteos_db"
@@ -265,8 +267,26 @@ Write-Ok "Configuration written to all .env files"
 
 Write-Step "Phase 4 - Setting up database schema..."
 
+# Group 1 must succeed before anything else - pgvector and timescaledb are
+# required by later groups. If this fails, no subsequent SQL will work.
+$extFile = Join-Path $scriptDir "sql\group1_extensions.sql"
+if (-not (Test-Path $extFile)) {
+    Write-Err "sql\group1_extensions.sql not found. Cannot continue without extensions."
+    exit 1
+}
+Write-Host "     Installing extensions (timescaledb, pgvector, uuid-ossp)..." -ForegroundColor Gray
+$extContent = Get-Content $extFile -Raw -Encoding UTF8
+$extOutput  = $extContent | docker exec -i athleteos_db psql -U postgres -d athleteos 2>&1
+if ($LASTEXITCODE -ne 0) {
+    Write-Err "Extensions failed to install. Output:`n$extOutput"
+    Write-Err "TimescaleDB and pgvector must be enabled before proceeding."
+    Write-Err "Confirm the Docker image is timescale/timescaledb-ha:pg16 and try again."
+    exit 1
+}
+Write-Ok "sql\group1_extensions.sql - extensions enabled"
+
+# Groups 2-10: run in order, warn on non-zero but continue
 $sqlFiles = @(
-    "sql\group01_extensions.sql",
     "sql\group2_reference_tables.sql",
     "sql\group3_athlete_core.sql",
     "sql\group4_season_planning.sql",
