@@ -532,5 +532,16 @@ Build status:
 8. Frontend ✅
 9. Installer script ✅
 
-**Athlete OS V1 is complete.** All 8 active layers built and committed.
+**V1 complete — all layers built and tested.**
 Commit: b6d226f — installer, welcome tour, README, setup guide - V1 complete
+
+**Additional items completed post-V1:**
+- FIT file parser (ingestion service)
+- In-app bug reporter (BugReporter.jsx + POST /bugs)
+- Playwright test suite (5 critical path tests, 5/5 pass)
+- Welcome tour scroll fix
+- Web chat WebSocket stability fix
+- Settings training section (primary sport + methodology)
+
+Bug reports log to: AthleteOS/bug_reports.json
+Run tests: cd frontend && npx playwright test
