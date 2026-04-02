@@ -37,20 +37,20 @@ function CostBar({ label, cost, maxCost, color }) {
 }
 
 export default function UsageSummary() {
-  const { data: usage, loading, error } = useFetch('/usage')
+  const { data: usage, loading, error } = useFetch('/usage/summary')
 
-  const thisMonth = usage?.this_month ?? usage
-  const totalCost = thisMonth?.total_cost_usd ?? 0
-  const byCallType = thisMonth?.by_call_type ?? usage?.by_call_type ?? {}
+  const totalCost = usage?.totals?.mtd_cost_usd ?? 0
+  const byModel   = Array.isArray(usage?.by_model) ? usage.by_model : []
 
   // Predicted monthly: simple linear projection from current day of month
-  const dayOfMonth = new Date().getDate()
+  const dayOfMonth  = new Date().getDate()
   const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()
-  const predicted = dayOfMonth > 0 ? (totalCost / dayOfMonth) * daysInMonth : 0
+  const predicted   = dayOfMonth > 0 ? (totalCost / dayOfMonth) * daysInMonth : 0
 
-  const callTypeEntries = Object.entries(byCallType)
-    .filter(([, v]) => v > 0)
-    .sort(([, a], [, b]) => b - a)
+  const callTypeEntries = byModel
+    .filter(r => (r.cost_usd ?? 0) > 0)
+    .sort((a, b) => b.cost_usd - a.cost_usd)
+    .map(r => [r.model, r.cost_usd])
   const maxCost = callTypeEntries[0]?.[1] ?? 1
 
   return (

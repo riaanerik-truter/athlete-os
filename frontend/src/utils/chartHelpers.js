@@ -15,6 +15,7 @@ export function buildFitnessChartData(history = [], weeksBack = 12) {
   const weeks = {}
   for (const entry of sliced) {
     const date = new Date(entry.date)
+    if (isNaN(date.getTime())) continue
     const monday = new Date(date)
     monday.setDate(date.getDate() - date.getDay() + 1)
     const key = monday.toISOString().slice(0, 10)

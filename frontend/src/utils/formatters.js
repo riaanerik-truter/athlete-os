@@ -1,5 +1,11 @@
 // Implemented in step 2 (shared components)
 
+export function safeDate(value) {
+  if (!value) return null
+  const d = new Date(value)
+  return isNaN(d.getTime()) ? null : d
+}
+
 export function formatDuration(seconds) {
   if (seconds == null) return '—'
   const h = Math.floor(seconds / 3600)
@@ -8,8 +14,9 @@ export function formatDuration(seconds) {
 }
 
 export function formatDate(iso) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })
+  const d = safeDate(iso)
+  if (!d) return '—'
+  return d.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 export function formatNumber(n, decimals = 1) {
@@ -30,7 +37,8 @@ export function formatWkg(watts, weightKg) {
 }
 
 export function daysUntil(isoDate) {
-  if (!isoDate) return null
-  const diff = new Date(isoDate) - new Date()
+  const d = safeDate(isoDate)
+  if (!d) return null
+  const diff = d - new Date()
   return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
 }

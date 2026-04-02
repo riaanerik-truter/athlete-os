@@ -61,7 +61,10 @@ export async function parseFitFile(filePath) {
 
 function toIso(val) {
   if (!val) return null;
-  if (val instanceof Date) return val.toISOString();
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return null;
+    return val.toISOString();
+  }
   if (typeof val === 'string') return val;
   return null;
 }
@@ -89,11 +92,17 @@ function extractFromFit(filePath, data) {
 
   // Timestamps
   const startTime = toIso(sess.start_time);
+  if (!startTime) {
+    log.warn({ filePath }, 'fit parser: missing or invalid start_time — session skipped');
+    return { session: null, streamRows: [] };
+  }
+
   const durationSec = sess.total_timer_time != null ? Math.round(sess.total_timer_time) : null;
-  const endTime = startTime && durationSec != null
-    ? new Date(new Date(startTime).getTime() + durationSec * 1000).toISOString()
+  const endTimeMs = durationSec != null ? new Date(startTime).getTime() + durationSec * 1000 : null;
+  const endTime = endTimeMs != null && !isNaN(endTimeMs)
+    ? new Date(endTimeMs).toISOString()
     : null;
-  const activityDate = startTime ? startTime.split('T')[0] : null;
+  const activityDate = startTime.split('T')[0];
 
   // Speed: enhanced_avg_speed is populated when avg_speed is absent
   const avgSpeedMs = sess.enhanced_avg_speed ?? sess.avg_speed ?? null;
