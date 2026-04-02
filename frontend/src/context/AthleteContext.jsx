@@ -14,8 +14,8 @@ export function AthleteProvider({ children }) {
     setError(null)
     try {
       const [athleteRes, snapshotRes] = await Promise.allSettled([
-        axios.get('/api/v1/athlete', { headers: { 'X-API-Key': 'dev-local-key' } }),
-        axios.get('/api/v1/fitness/snapshot', { headers: { 'X-API-Key': 'dev-local-key' } }),
+        axios.get('/api/v1/athlete', { headers: { 'X-API-Key': 'sk-local-kzS5FHuBZ6TNI214' } }),
+        axios.get('/api/v1/fitness/snapshot', { headers: { 'X-API-Key': 'sk-local-kzS5FHuBZ6TNI214' } }),
       ])
       if (athleteRes.status === 'fulfilled') setAthlete(athleteRes.value.data)
       if (snapshotRes.status === 'fulfilled') setSnapshot(snapshotRes.value.data)

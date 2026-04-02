@@ -7,6 +7,7 @@ import { AthleteProvider } from './context/AthleteContext.jsx'
 import Navbar        from './components/shared/Navbar.jsx'
 import SettingsPanel from './components/shared/SettingsPanel.jsx'
 import ChatWidget    from './components/shared/ChatWidget.jsx'
+import BugReporter   from './components/shared/BugReporter.jsx'
 
 import Dashboard      from './pages/Dashboard.jsx'
 import Knowledge      from './pages/Knowledge.jsx'
@@ -39,6 +40,7 @@ export default function App() {
             />
 
             <ChatWidget />
+            <BugReporter />
 
           </div>
         </BrowserRouter>

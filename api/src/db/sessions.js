@@ -193,6 +193,62 @@ export async function getWorkoutStream(pool, garminActivityId, resolution = 1) {
   return result.rows;
 }
 
+/**
+ * Inserts a batch of workout_stream rows for a session.
+ * Uses a single multi-row INSERT for efficiency.
+ * Skips rows where time is null.
+ *
+ * @param {object} pool
+ * @param {string} athleteId
+ * @param {string} garminActivityId
+ * @param {object[]} rows - Array of stream row objects
+ * @returns {Promise<number>} Number of rows inserted
+ */
+export async function insertWorkoutStream(pool, athleteId, garminActivityId, rows) {
+  const valid = rows.filter(r => r.time != null);
+  if (!valid.length) return 0;
+
+  // Build parameterised multi-row insert in chunks of 500 to avoid pg parameter limit
+  const CHUNK = 500;
+  let inserted = 0;
+
+  for (let i = 0; i < valid.length; i += CHUNK) {
+    const chunk = valid.slice(i, i + CHUNK);
+    const values = [];
+    const params = [];
+    let p = 1;
+
+    for (const row of chunk) {
+      params.push(`($${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`);
+      values.push(
+        row.time,
+        athleteId,
+        garminActivityId,
+        row.power_w      ?? null,
+        row.hr_bpm       ?? null,
+        row.cadence_rpm  ?? null,
+        row.speed_ms     ?? null,
+        row.elevation_m  ?? null,
+        row.latitude     ?? null,
+        row.longitude    ?? null,
+        row.distance_m   ?? null,
+      );
+    }
+
+    await pool.query(`
+      INSERT INTO workout_stream
+        (time, athlete_id, garmin_activity_id, power_w, hr_bpm, cadence_rpm,
+         speed_ms, elevation_m, latitude, longitude, distance_m)
+      VALUES ${params.join(',')}
+      ON CONFLICT DO NOTHING
+    `, values);
+
+    inserted += chunk.length;
+  }
+
+  return inserted;
+}
+
 // ---------------------------------------------------------------------------
 // Session scores
 // ---------------------------------------------------------------------------

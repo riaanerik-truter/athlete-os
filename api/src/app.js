@@ -14,6 +14,7 @@ import knowledgeRouter from './routes/knowledge.js';
 import syncRouter     from './routes/sync.js';
 import snapshotRouter from './routes/snapshot.js';
 import usageRouter    from './routes/usage.js';
+import bugsRouter     from './routes/bugs.js';
 
 export function buildApp() {
   const app = express();
@@ -36,6 +37,7 @@ export function buildApp() {
   app.use('/api/v1', syncRouter);
   app.use('/api/v1', snapshotRouter);
   app.use('/api/v1', usageRouter);
+  app.use('/api/v1', bugsRouter);
 
   app.use(errorHandler);
 

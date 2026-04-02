@@ -9,7 +9,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import axios from 'axios'
 
 const WS_URL      = 'ws://localhost:3001'
-const API_HEADERS = { 'X-API-Key': 'dev-local-key' }
+const API_HEADERS = { 'X-API-Key': 'sk-local-kzS5FHuBZ6TNI214' }
 const MAX_RECONNECT_DELAY = 30_000
 const HISTORY_LIMIT       = 40
 
@@ -24,6 +24,10 @@ export function useChat() {
   const reconnectTimer  = useRef(null)
   const reconnectDelay  = useRef(1000)
   const historyLoaded   = useRef(false)
+  // Ref keeps the unread-increment check current without re-creating connect
+  const openRef         = useRef(false)
+
+  useEffect(() => { openRef.current = open }, [open])
 
   // Load conversation history from API on first open
   async function loadHistory() {
@@ -48,7 +52,7 @@ export function useChat() {
     finally { setLoadingHistory(false) }
   }
 
-  // Connect / reconnect
+  // Connect / reconnect — no dependency on `open` so chat toggle doesn't trigger reconnect
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
 
@@ -75,9 +79,9 @@ export function useChat() {
 
         setMessages(prev => [...prev, newMsg])
 
-        // Track unread when panel is closed
+        // Track unread when panel is closed (use ref to avoid stale closure)
         if (msg.role === 'coach') {
-          setUnread(n => open ? 0 : n + 1)
+          setUnread(n => openRef.current ? 0 : n + 1)
         }
       } catch { /**/ }
     }
@@ -95,7 +99,7 @@ export function useChat() {
     ws.onerror = () => {
       ws.close()
     }
-  }, [open])
+  }, []) // intentionally no deps — stable function, uses openRef for current open state
 
   useEffect(() => {
     connect()
@@ -105,7 +109,7 @@ export function useChat() {
     }
   }, [connect])
 
-  // Reset unread when panel opens
+  // Reset unread when panel opens; load history on first open
   useEffect(() => {
     if (open) {
       setUnread(0)

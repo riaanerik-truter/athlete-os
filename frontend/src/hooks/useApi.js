@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 
-const API_KEY = 'dev-local-key'
+const API_KEY = 'sk-local-kzS5FHuBZ6TNI214'
 const HEADERS  = { 'X-API-Key': API_KEY }
 
 // ---------------------------------------------------------------------------
-// useApi — for mutations (POST, PATCH, DELETE) and ad-hoc fetches
+// useApi â€” for mutations (POST, PATCH, DELETE) and ad-hoc fetches
 // Returns { request, loading, error }
 // ---------------------------------------------------------------------------
 
@@ -32,7 +32,7 @@ export function useApi() {
 }
 
 // ---------------------------------------------------------------------------
-// useFetch — for GET requests that load on mount
+// useFetch â€” for GET requests that load on mount
 // Returns { data, loading, error, reload }
 // ---------------------------------------------------------------------------
 

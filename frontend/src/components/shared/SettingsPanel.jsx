@@ -87,18 +87,28 @@ function ProactiveSlider({ value, onChange }) {
 // Main panel
 // ---------------------------------------------------------------------------
 
+const SPORT_OPTIONS = [
+  { value: 'cycling',   label: 'Cycling' },
+  { value: 'mtb',       label: 'MTB' },
+  { value: 'running',   label: 'Running' },
+  { value: 'swimming',  label: 'Swimming' },
+  { value: 'triathlon', label: 'Triathlon' },
+]
+
 export default function SettingsPanel({ open, onClose }) {
   const { theme, toggle: toggleTheme } = useTheme()
   const { athlete, reload: reloadAthlete } = useAthlete()
   const { prefs, setPref } = usePrefs()
   const { request: apiRequest, loading: saving } = useApi()
 
-  const { data: configData } = useFetch('/config', { skip: !open })
-  const { data: syncData }   = useFetch('/sync/status', { skip: !open })
+  const { data: configData }       = useFetch('/config',         { skip: !open })
+  const { data: syncData }         = useFetch('/sync/status',    { skip: !open })
+  const { data: methodologyData }  = useFetch('/methodologies',  { skip: !open })
 
   // Local state for DB-backed fields
-  const [timezone, setTimezone]       = useState('')
-  const [whatsapp, setWhatsapp]       = useState('')
+  const [timezone,    setTimezone]    = useState('')
+  const [whatsapp,    setWhatsapp]    = useState('')
+  const [savedField,  setSavedField]  = useState(null) // shows inline "Saved" confirmation
 
   useEffect(() => {
     if (athlete) {
@@ -106,6 +116,13 @@ export default function SettingsPanel({ open, onClose }) {
       setWhatsapp(athlete.whatsapp_number ?? '')
     }
   }, [athlete])
+
+  async function patchAthlete(field, value) {
+    await apiRequest('PATCH', '/athlete', { [field]: value })
+    reloadAthlete()
+    setSavedField(field)
+    setTimeout(() => setSavedField(null), 1500)
+  }
 
   async function saveDbSettings() {
     const patch = {}
@@ -148,6 +165,34 @@ export default function SettingsPanel({ open, onClose }) {
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto px-5 py-5">
+
+          {/* 0. Training */}
+          <Section title="Training">
+            <Row label="Primary sport">
+              <div className="flex items-center gap-2">
+                <Select
+                  value={athlete?.primary_sport ?? ''}
+                  onChange={v => patchAthlete('primary_sport', v)}
+                  options={SPORT_OPTIONS}
+                />
+                {savedField === 'primary_sport' && (
+                  <span className="text-xs text-green-600 dark:text-green-400">Saved</span>
+                )}
+              </div>
+            </Row>
+            <Row label="Methodology" hint="Coaching rules applied to your training plan">
+              <div className="flex items-center gap-2">
+                <Select
+                  value={athlete?.active_methodology?.id ?? athlete?.active_methodology_id ?? ''}
+                  onChange={v => patchAthlete('active_methodology_id', v)}
+                  options={(methodologyData?.data ?? []).map(m => ({ value: m.id, label: m.name }))}
+                />
+                {savedField === 'active_methodology_id' && (
+                  <span className="text-xs text-green-600 dark:text-green-400">Saved</span>
+                )}
+              </div>
+            </Row>
+          </Section>
 
           {/* 1. Notifications */}
           <Section title="Notifications">
@@ -275,7 +320,7 @@ export default function SettingsPanel({ open, onClose }) {
               />
             </Row>
             <Row label="API key">
-              <span className="text-xs font-mono text-gray-400">dev-local-key</span>
+              <span className="text-xs font-mono text-gray-400">sk-local-kzS5FHuBZ6TNI214</span>
             </Row>
           </Section>
 

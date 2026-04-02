@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAthlete } from '../../context/AthleteContext.jsx'
 import axios from 'axios'
 
-const API_KEY = 'dev-local-key'
+const API_KEY = 'sk-local-kzS5FHuBZ6TNI214'
 
 const STEPS = [
   {
@@ -140,17 +140,19 @@ function TourCard({ step, stepIndex, totalSteps, rect, athleteName, onNext, onSk
     )
   }
 
-  // Position card below or above the spotlight
+  // Position card below or above the spotlight.
+  // TourCard is `fixed`, so coordinates are viewport-relative.
+  // getBoundingClientRect() already returns viewport-relative values — do NOT add scrollY/scrollX.
   const viewportH = window.innerHeight
   const cardH     = 180
   const pad        = 16
 
-  let top  = rect ? rect.bottom + 16 + window.scrollY : viewportH / 2
-  let left = rect ? Math.max(pad, rect.left + window.scrollX) : pad
+  let top  = rect ? rect.bottom + 16 : viewportH / 2
+  let left = rect ? Math.max(pad, rect.left) : pad
 
   // Flip above if card would overflow bottom
   if (rect && rect.bottom + cardH + pad > viewportH) {
-    top = rect.top + window.scrollY - cardH - 16
+    top = rect.top - cardH - 16
   }
 
   return (
@@ -226,6 +228,8 @@ export default function WelcomeTour() {
     localStorage.setItem('athleteos_tour_completed', 'true')
     setActive(false)
     postWelcomeMessage()
+    // Signal ChatWidget to open so the athlete sees the welcome message immediately
+    window.dispatchEvent(new CustomEvent('athleteos:openchat'))
   }
 
   function handleNext() {

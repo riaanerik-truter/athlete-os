@@ -34,6 +34,7 @@ import {
   createCompletedSession,
   updateCompletedSession,
   getWorkoutStream,
+  insertWorkoutStream,
   getSessionScore,
   getPlannedSessions,
   getPlannedSessionById,
@@ -385,6 +386,55 @@ router.get('/sessions/:id/stream', async (req, res, next) => {
       garmin_activity_id: session.garmin_activity_id,
       points
     });
+  } catch (err) { next(err); }
+});
+
+// ---------------------------------------------------------------------------
+// POST /sessions/:id/stream
+// ---------------------------------------------------------------------------
+// Bulk-inserts workout_stream rows for a completed session.
+// Body: { rows: [{ time, power_w, hr_bpm, cadence_rpm, speed_ms,
+//                  elevation_m, latitude, longitude, distance_m }] }
+// Returns: { inserted: N }
+
+const streamRowSchema = z.object({
+  time:          z.string().datetime({ offset: true }),
+  power_w:       z.number().nullable().optional(),
+  hr_bpm:        z.number().int().nullable().optional(),
+  cadence_rpm:   z.number().nullable().optional(),
+  speed_ms:      z.number().nullable().optional(),
+  elevation_m:   z.number().nullable().optional(),
+  latitude:      z.number().nullable().optional(),
+  longitude:     z.number().nullable().optional(),
+  distance_m:    z.number().nullable().optional(),
+  temperature_c: z.number().nullable().optional(),
+});
+
+const streamBodySchema = z.object({
+  rows: z.array(streamRowSchema).min(1),
+});
+
+router.post('/sessions/:id/stream', async (req, res, next) => {
+  try {
+    const athleteId = await getAthleteId(pool);
+    if (!athleteId) return notFound(res, 'Athlete not found');
+
+    const session = await getCompletedSessionById(pool, athleteId, req.params.id);
+    if (!session) return notFound(res, 'Session not found');
+
+    const parsed = streamBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(422).json({ error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0].message } });
+    }
+
+    const inserted = await insertWorkoutStream(
+      pool,
+      athleteId,
+      session.garmin_activity_id,
+      parsed.data.rows
+    );
+
+    res.status(201).json({ inserted });
   } catch (err) { next(err); }
 });
 

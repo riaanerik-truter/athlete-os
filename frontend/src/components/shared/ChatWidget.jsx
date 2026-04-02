@@ -123,6 +123,13 @@ export default function ChatWidget() {
   const messagesEndRef             = useRef(null)
   const fileRef                    = useRef(null)
 
+  // Open chat when WelcomeTour completes
+  useEffect(() => {
+    const handler = () => setOpen(true)
+    window.addEventListener('athleteos:openchat', handler)
+    return () => window.removeEventListener('athleteos:openchat', handler)
+  }, [setOpen])
+
   // Scroll to bottom on new messages
   useEffect(() => {
     if (open) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
