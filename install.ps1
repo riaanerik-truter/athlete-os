@@ -277,7 +277,7 @@ if (-not (Test-Path $extFile)) {
 Write-Host "     Installing extensions (timescaledb, pgvector, uuid-ossp)..." -ForegroundColor Gray
 $extContent = Get-Content $extFile -Raw -Encoding UTF8
 $extOutput  = $extContent | docker exec -i athleteos_db psql -U postgres -d athleteos 2>&1
-if ($LASTEXITCODE -ne 0) {
+if ($extOutput -match "ERROR:") {
     Write-Err "Extensions failed to install. Output:`n$extOutput"
     Write-Err "TimescaleDB and pgvector must be enabled before proceeding."
     Write-Err "Confirm the Docker image is timescale/timescaledb-ha:pg16 and try again."
@@ -285,7 +285,9 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Ok "sql\group1_extensions.sql - extensions enabled"
 
-# Groups 2-10: run in order, warn on non-zero but continue
+# Groups 2-10: run in order.
+# NOTICE / WARNING / INFO from PostgreSQL are informational - not failures.
+# Only stop if the output contains "ERROR:".
 $sqlFiles = @(
     "sql\group2_reference_tables.sql",
     "sql\group3_athlete_core.sql",
@@ -305,9 +307,10 @@ foreach ($sqlFile in $sqlFiles) {
         continue
     }
     $content = Get-Content $fullPath -Raw -Encoding UTF8
-    $null = $content | docker exec -i athleteos_db psql -U postgres -d athleteos 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warn "Non-zero exit running $sqlFile (may be safe if tables already exist)"
+    $output  = $content | docker exec -i athleteos_db psql -U postgres -d athleteos 2>&1
+    if ($output -match "ERROR:") {
+        Write-Warn "$sqlFile - completed with errors (check output below)"
+        Write-Host ($output | Select-String "ERROR:" | ForEach-Object { "     $_" }) -ForegroundColor Yellow
     } else {
         Write-Ok "$sqlFile"
     }
