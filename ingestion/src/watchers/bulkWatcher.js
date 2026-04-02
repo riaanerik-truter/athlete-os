@@ -1,10 +1,11 @@
 import chokidar from 'chokidar';
-import { resolve, extname, basename } from 'path';
+import { resolve, extname, basename, join } from 'path';
 import { rename, mkdir, readdir } from 'fs/promises';
 import { parseGarminBulkFile } from '../parsers/garminBulkParser.js';
 import { parseTpCsv } from '../parsers/tpCsvParser.js';
 import { alreadyImported, appendLog } from '../utils/bulkImportLog.js';
 import { apiClient } from '../api/client.js';
+import { processBulkExportFolder } from '../jobs/bulkImportJob.js';
 import pino from 'pino';
 
 const log = pino({ level: process.env.LOG_LEVEL ?? 'info' });
@@ -111,13 +112,30 @@ async function handleBulkFile(filePath, processedDir) {
 
 /**
  * Handles a folder dropped into watched-bulk/.
- * Recursively walks the directory tree and processes every .json and .csv file found.
+ *
+ * If the folder looks like a Garmin Connect export (contains a DI_CONNECT subfolder),
+ * delegates to processBulkExportFolder which knows the DI_CONNECT structure, handles
+ * zip extraction of FIT files, and moves the entire folder to processed/ when done.
+ *
+ * Otherwise falls back to a generic recursive walk processing individual .json/.csv files.
+ *
  * The root watched-bulk/ itself fires addDir on startup — skip it.
  */
 async function handleBulkDir(dirPath, processedDir) {
   if (dirPath === resolve(processedDir, '..')) return  // skip watched-bulk root itself
 
-  log.info({ dirPath }, 'bulk watcher: folder detected — scanning for importable files');
+  log.info({ dirPath }, 'bulk watcher: folder detected');
+
+  // Detect Garmin Connect GDPR export: has DI_CONNECT subfolder
+  const isGarminExport = await hasSubfolder(dirPath, 'DI_CONNECT');
+  if (isGarminExport) {
+    log.info({ dirPath }, 'bulk watcher: Garmin export format detected — routing to processBulkExportFolder');
+    await processBulkExportFolder(dirPath, processedDir);
+    return;
+  }
+
+  // Generic fallback: walk folder and process individual .json/.csv files
+  log.info({ dirPath }, 'bulk watcher: generic folder — scanning for importable files');
 
   async function walkAndProcess(dir) {
     let entries;
@@ -141,6 +159,18 @@ async function handleBulkDir(dirPath, processedDir) {
   }
 
   await walkAndProcess(dirPath);
+}
+
+/**
+ * Returns true if parentDir contains a direct subdirectory with the given name.
+ */
+async function hasSubfolder(parentDir, name) {
+  try {
+    const entries = await readdir(parentDir, { withFileTypes: true });
+    return entries.some(e => e.isDirectory() && e.name === name);
+  } catch {
+    return false;
+  }
 }
 
 async function moveFile(src, destDir, filename) {
