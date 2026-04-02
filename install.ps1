@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Athlete OS installer — Windows PowerShell
+    Athlete OS installer - Windows PowerShell
 .DESCRIPTION
     Checks prerequisites, sets up the database, collects credentials,
     installs dependencies, creates the athlete profile, adds desktop
@@ -12,25 +12,25 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 
-function Write-Ok    { param([string]$msg) Write-Host "[✓] $msg" -ForegroundColor Green }
-function Write-Warn  { param([string]$msg) Write-Host "[!] $msg" -ForegroundColor Yellow }
-function Write-Err   { param([string]$msg) Write-Host "[✗] $msg" -ForegroundColor Red }
-function Write-Step  { param([string]$msg) Write-Host "`n$msg" -ForegroundColor Cyan }
-function Write-Info  { param([string]$msg) Write-Host "    $msg" -ForegroundColor Gray }
+function Write-Ok   { param([string]$msg) Write-Host "[OK] $msg" -ForegroundColor Green }
+function Write-Warn { param([string]$msg) Write-Host "[!]  $msg" -ForegroundColor Yellow }
+function Write-Err  { param([string]$msg) Write-Host "[X]  $msg" -ForegroundColor Red }
+function Write-Step { param([string]$msg) Write-Host "`n$msg" -ForegroundColor Cyan }
+function Write-Info { param([string]$msg) Write-Host "     $msg" -ForegroundColor Gray }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Phase 1 — Prerequisites check
-# ─────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
+# Phase 1 - Prerequisites check
+# ------------------------------------------------------------------------------
 
-Write-Step "Phase 1 — Checking prerequisites..."
+Write-Step "Phase 1 - Checking prerequisites..."
 
 # PowerShell version
-Write-Ok "PowerShell $($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor) — OK"
+Write-Ok "PowerShell $($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor) - OK"
 
 # Internet connection
 try {
     $null = Invoke-WebRequest -Uri "https://www.google.com" -UseBasicParsing -TimeoutSec 5
-    Write-Ok "Internet connection — OK"
+    Write-Ok "Internet connection - OK"
 } catch {
     Write-Err "No internet connection detected. Please connect and re-run."
     exit 1
@@ -41,14 +41,14 @@ function Test-Git {
     try { $null = git --version 2>&1; return $true } catch { return $false }
 }
 while (-not (Test-Git)) {
-    Write-Warn "Git — not found"
+    Write-Warn "Git - not found"
     Write-Info "Git is needed to clone repositories."
     Write-Info "Opening git-scm.com/download/win ..."
     Start-Process "https://git-scm.com/download/win"
-    Write-Host "    Press Enter after Git is installed to continue..." -NoNewline
+    Write-Host "     Press Enter after Git is installed to continue..." -NoNewline
     Read-Host
 }
-Write-Ok "Git — OK"
+Write-Ok "Git - OK"
 
 # Node.js 18+
 function Test-Node {
@@ -59,14 +59,14 @@ function Test-Node {
     } catch { return $false }
 }
 while (-not (Test-Node)) {
-    Write-Warn "Node.js 18+ — not found"
+    Write-Warn "Node.js 18+ - not found"
     Write-Info "Node.js runs the Athlete OS services."
     Write-Info "Opening nodejs.org/en/download ..."
     Start-Process "https://nodejs.org/en/download"
-    Write-Host "    Press Enter after Node.js is installed to continue..." -NoNewline
+    Write-Host "     Press Enter after Node.js is installed to continue..." -NoNewline
     Read-Host
 }
-Write-Ok "Node.js $(node --version) — OK"
+Write-Ok "Node.js $(node --version) - OK"
 
 # Docker Desktop
 function Test-DockerInstalled {
@@ -74,17 +74,17 @@ function Test-DockerInstalled {
 }
 function Test-DockerRunning {
     try {
-        $info = docker info 2>&1
+        $null = docker info 2>&1
         return ($LASTEXITCODE -eq 0)
     } catch { return $false }
 }
 
 while (-not (Test-DockerInstalled)) {
-    Write-Warn "Docker Desktop — not found"
+    Write-Warn "Docker Desktop - not found"
     Write-Info "Docker runs the PostgreSQL database container."
     Write-Info "Opening docker.com/products/docker-desktop ..."
     Start-Process "https://www.docker.com/products/docker-desktop"
-    Write-Host "    Press Enter after Docker Desktop is installed and running..." -NoNewline
+    Write-Host "     Press Enter after Docker Desktop is installed and running..." -NoNewline
     Read-Host
 }
 
@@ -92,16 +92,16 @@ while (-not (Test-DockerRunning)) {
     Write-Warn "Docker Desktop is installed but not running"
     Write-Info "Please open Docker Desktop from the Start menu and wait for it to start."
     Write-Info "(The whale icon in the system tray stops animating when ready.)"
-    Write-Host "    Press Enter when Docker Desktop is running..." -NoNewline
+    Write-Host "     Press Enter when Docker Desktop is running..." -NoNewline
     Read-Host
 }
-Write-Ok "Docker Desktop — running"
+Write-Ok "Docker Desktop - running"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Phase 2 — Database setup
-# ─────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
+# Phase 2 - Database setup
+# ------------------------------------------------------------------------------
 
-Write-Step "Phase 2 — Setting up database..."
+Write-Step "Phase 2 - Setting up database..."
 
 $dbPassword = Read-Host "Choose a database password (press Enter for 'athleteos')"
 if ([string]::IsNullOrWhiteSpace($dbPassword)) { $dbPassword = "athleteos" }
@@ -109,14 +109,14 @@ if ([string]::IsNullOrWhiteSpace($dbPassword)) { $dbPassword = "athleteos" }
 # Remove existing container if present
 $existing = docker ps -a --filter "name=athleteos_db" --format "{{.Names}}" 2>&1
 if ($existing -match "athleteos_db") {
-    Write-Warn "Existing athleteos_db container found — removing..."
+    Write-Warn "Existing athleteos_db container found - removing..."
     docker rm -f athleteos_db | Out-Null
 }
 
-Write-Host "    Pulling TimescaleDB Docker image (this may take a few minutes)..." -ForegroundColor Gray
+Write-Host "     Pulling TimescaleDB Docker image (this may take a few minutes)..." -ForegroundColor Gray
 docker pull timescale/timescaledb-ha:pg16
 
-Write-Host "    Starting database container athleteos_db..." -ForegroundColor Gray
+Write-Host "     Starting database container athleteos_db..." -ForegroundColor Gray
 docker run -d `
     --name athleteos_db `
     --restart unless-stopped `
@@ -126,7 +126,7 @@ docker run -d `
     timescale/timescaledb-ha:pg16 | Out-Null
 
 # Wait for healthy
-Write-Host "    Waiting for database to be ready..." -ForegroundColor Gray
+Write-Host "     Waiting for database to be ready..." -ForegroundColor Gray
 $attempts = 0
 do {
     Start-Sleep 2
@@ -140,16 +140,16 @@ if ($attempts -ge 30) {
 }
 Write-Ok "Database healthy on port 5432"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Phase 3 — Configuration
-# ─────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
+# Phase 3 - Configuration
+# ------------------------------------------------------------------------------
 
-Write-Step "Phase 3 — Configuration"
-Write-Host "─────────────────────────────────────────────────────" -ForegroundColor DarkGray
+Write-Step "Phase 3 - Configuration"
+Write-Host "-----------------------------------------------------" -ForegroundColor DarkGray
 
 # API key
 Write-Host "`nAthlete OS API Key (this secures your local API):" -ForegroundColor White
-Write-Host "→ Leave blank to generate a random key [recommended]: " -NoNewline -ForegroundColor Gray
+Write-Host "-> Leave blank to generate a random key [recommended]: " -NoNewline -ForegroundColor Gray
 $apiKeyInput = Read-Host
 if ([string]::IsNullOrWhiteSpace($apiKeyInput)) {
     $chars  = (65..90) + (97..122) + (48..57) | Get-Random -Count 16 | ForEach-Object { [char]$_ }
@@ -161,50 +161,50 @@ if ([string]::IsNullOrWhiteSpace($apiKeyInput)) {
 }
 
 # Anthropic
-Write-Host "`nAnthropic API Key (powers Coach Ri — required):" -ForegroundColor White
-Write-Host "→ Get yours at console.anthropic.com/api-keys" -ForegroundColor Gray
+Write-Host "`nAnthropic API Key (powers Coach Ri - required):" -ForegroundColor White
+Write-Host "-> Get yours at console.anthropic.com/api-keys" -ForegroundColor Gray
 $anthropicKey = ""
 while ([string]::IsNullOrWhiteSpace($anthropicKey)) {
-    $anthropicKey = Read-Host "  Enter key"
+    $anthropicKey = Read-Host "   Enter key"
     if ([string]::IsNullOrWhiteSpace($anthropicKey)) {
         Write-Warn "Anthropic API key is required. Please enter it."
     }
 }
 
 # Discord (optional)
-Write-Host "`nDiscord Bot Token (optional — for Coach Ri in Discord):" -ForegroundColor White
-Write-Host "→ See SETUP-GUIDE.md for step-by-step Discord setup" -ForegroundColor Gray
-$discordToken     = Read-Host "→ Leave blank to skip"
+Write-Host "`nDiscord Bot Token (optional - for Coach Ri in Discord):" -ForegroundColor White
+Write-Host "-> See SETUP-GUIDE.md for step-by-step Discord setup" -ForegroundColor Gray
+$discordToken     = Read-Host "-> Leave blank to skip"
 $discordChannelId = ""
 $discordGuildId   = ""
 if (-not [string]::IsNullOrWhiteSpace($discordToken)) {
-    $discordChannelId = Read-Host "  Discord Channel ID"
-    $discordGuildId   = Read-Host "  Discord Guild (Server) ID"
+    $discordChannelId = Read-Host "   Discord Channel ID"
+    $discordGuildId   = Read-Host "   Discord Guild (Server) ID"
 }
 
 # Strava (optional)
-Write-Host "`nStrava API (optional — for daily activity sync):" -ForegroundColor White
-Write-Host "→ See SETUP-GUIDE.md for Strava setup" -ForegroundColor Gray
-$stravaClientId     = Read-Host "  Strava Client ID (leave blank to skip)"
+Write-Host "`nStrava API (optional - for daily activity sync):" -ForegroundColor White
+Write-Host "-> See SETUP-GUIDE.md for Strava setup" -ForegroundColor Gray
+$stravaClientId     = Read-Host "   Strava Client ID (leave blank to skip)"
 $stravaClientSecret = ""
 if (-not [string]::IsNullOrWhiteSpace($stravaClientId)) {
-    $stravaClientSecret = Read-Host "  Strava Client Secret"
+    $stravaClientSecret = Read-Host "   Strava Client Secret"
 }
 
 # Athlete info
 Write-Host "`nAthlete profile:" -ForegroundColor White
-$athleteName  = Read-Host "  Your name"
-$athleteEmail = Read-Host "  Your email"
+$athleteName  = Read-Host "   Your name"
+$athleteEmail = Read-Host "   Your email"
 $primarySport = ""
 while ($primarySport -notmatch "^(mtb|cycling|running|swimming|triathlon)$") {
-    $primarySport = Read-Host "  Primary sport (mtb/cycling/running/swimming/triathlon)"
+    $primarySport = Read-Host "   Primary sport (mtb/cycling/running/swimming/triathlon)"
 }
-$timezone = Read-Host "  Timezone (e.g. Africa/Johannesburg)"
+$timezone = Read-Host "   Timezone (e.g. Africa/Johannesburg)"
 if ([string]::IsNullOrWhiteSpace($timezone)) { $timezone = "UTC" }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 # Write .env files
-# ─────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 
 $apiEnv = @"
 PORT=3000
@@ -259,11 +259,11 @@ if (Test-Path $frontendApiFile) {
 
 Write-Ok "Configuration written to all .env files"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Phase 4 — Schema and seed data
-# ─────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
+# Phase 4 - Schema and seed data
+# ------------------------------------------------------------------------------
 
-Write-Step "Phase 4 — Setting up database schema..."
+Write-Step "Phase 4 - Setting up database schema..."
 
 $sqlFiles = @(
     "sql\group01_extensions.sql",
@@ -281,11 +281,11 @@ $sqlFiles = @(
 foreach ($sqlFile in $sqlFiles) {
     $fullPath = Join-Path $scriptDir $sqlFile
     if (-not (Test-Path $fullPath)) {
-        Write-Warn "SQL file not found: $sqlFile — skipping"
+        Write-Warn "SQL file not found: $sqlFile - skipping"
         continue
     }
     $content = Get-Content $fullPath -Raw -Encoding UTF8
-    $result  = $content | docker exec -i athleteos_db psql -U postgres -d athleteos 2>&1
+    $null = $content | docker exec -i athleteos_db psql -U postgres -d athleteos 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Warn "Non-zero exit running $sqlFile (may be safe if tables already exist)"
     } else {
@@ -293,61 +293,61 @@ foreach ($sqlFile in $sqlFiles) {
     }
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Phase 5 — Node dependencies
-# ─────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
+# Phase 5 - Node dependencies
+# ------------------------------------------------------------------------------
 
-Write-Step "Phase 5 — Installing dependencies..."
+Write-Step "Phase 5 - Installing dependencies..."
 
 $services = @("api", "ingestion", "coaching-engine", "knowledge-engine", "messaging-service")
 foreach ($svc in $services) {
     $svcPath = Join-Path $scriptDir $svc
     if (-not (Test-Path $svcPath)) {
-        Write-Warn "$svc directory not found — skipping"
+        Write-Warn "$svc directory not found - skipping"
         continue
     }
-    Write-Host "    Installing $svc..." -ForegroundColor Gray
+    Write-Host "     Installing $svc..." -ForegroundColor Gray
     Push-Location $svcPath
     npm install --silent 2>&1 | Out-Null
     Pop-Location
-    Write-Ok "$svc — npm install"
+    Write-Ok "$svc - npm install complete"
 }
 
-# Frontend — install + build
+# Frontend - install + build
 $frontendPath = Join-Path $scriptDir "frontend"
 if (Test-Path $frontendPath) {
-    Write-Host "    Installing and building frontend..." -ForegroundColor Gray
+    Write-Host "     Installing and building frontend..." -ForegroundColor Gray
     Push-Location $frontendPath
     npm install --silent 2>&1 | Out-Null
     npm run build 2>&1 | Out-Null
     Pop-Location
-    Write-Ok "frontend — npm install && npm run build"
+    Write-Ok "frontend - install and build complete"
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Phase 6 — Athlete profile creation
-# ─────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
+# Phase 6 - Athlete profile creation
+# ------------------------------------------------------------------------------
 
-Write-Step "Phase 6 — Creating your athlete profile..."
+Write-Step "Phase 6 - Creating your athlete profile..."
 
 # Start API temporarily
 $apiProc = Start-Process powershell `
-    -ArgumentList "-NoExit", "-Command", "cd '$scriptDir\api'; node src/index.js" `
+    -ArgumentList "-Command", "Set-Location '$scriptDir\api'; node src/index.js" `
     -WindowStyle Hidden `
     -PassThru
 
 Start-Sleep 5
 
 $athleteData = @{
-    name         = $athleteName
-    email        = $athleteEmail
+    name          = $athleteName
+    email         = $athleteEmail
     primary_sport = $primarySport
-    timezone     = $timezone
-    methodology  = "friel"
+    timezone      = $timezone
+    methodology   = "friel"
 }
 
 try {
-    $response = Invoke-RestMethod `
+    $null = Invoke-RestMethod `
         -Uri "http://localhost:3000/api/v1/athlete" `
         -Method POST `
         -Headers @{ "X-API-Key" = $apiKey; "Content-Type" = "application/json" } `
@@ -355,84 +355,92 @@ try {
         -ErrorAction SilentlyContinue
     Write-Ok "Athlete profile created for $athleteName"
 } catch {
-    # 409 means athlete already exists — that is fine
-    if ($_.Exception.Response.StatusCode.value__ -eq 409) {
-        Write-Ok "Athlete profile already exists — continuing"
+    if ($_.Exception.Response -ne $null -and $_.Exception.Response.StatusCode.value__ -eq 409) {
+        Write-Ok "Athlete profile already exists - continuing"
     } else {
         Write-Warn "Could not create athlete profile automatically. You can do this from the dashboard."
     }
 }
 
 # Stop temporary API
-Stop-Process -Id $apiProc.Id -Force -ErrorAction SilentlyContinue
+try {
+    Stop-Process -Id $apiProc.Id -Force -ErrorAction SilentlyContinue
+} catch {
+    Write-Host "Warning: $($_.Exception.Message)" -ForegroundColor Yellow
+}
 Start-Sleep 2
 Write-Ok "Friel methodology set as default"
 Write-Ok "Zone model ready for $primarySport"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Phase 7 — Desktop shortcuts
-# ─────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
+# Phase 7 - Desktop shortcuts
+# ------------------------------------------------------------------------------
 
-Write-Step "Phase 7 — Creating desktop shortcuts..."
+Write-Step "Phase 7 - Creating desktop shortcuts..."
 
 $desktop = [Environment]::GetFolderPath("Desktop")
 $shell   = New-Object -ComObject WScript.Shell
 
 # start shortcut
-$startLink          = $shell.CreateShortcut("$desktop\start-athlete-os.lnk")
-$startLink.TargetPath    = "$scriptDir\start.bat"
-$startLink.WorkingDirectory = $scriptDir
-$startLink.Description = "Start Athlete OS"
+$startLink              = $shell.CreateShortcut("$desktop\start-athlete-os.lnk")
+$startLink.TargetPath        = "$scriptDir\start.bat"
+$startLink.WorkingDirectory  = $scriptDir
+$startLink.Description       = "Start Athlete OS"
 $startLink.Save()
 Write-Ok "start-athlete-os shortcut created on Desktop"
 
 # stop shortcut
-$stopLink           = $shell.CreateShortcut("$desktop\stop-athlete-os.lnk")
-$stopLink.TargetPath     = "$scriptDir\stop.bat"
-$stopLink.WorkingDirectory = $scriptDir
-$stopLink.Description = "Stop Athlete OS"
+$stopLink               = $shell.CreateShortcut("$desktop\stop-athlete-os.lnk")
+$stopLink.TargetPath         = "$scriptDir\stop.bat"
+$stopLink.WorkingDirectory   = $scriptDir
+$stopLink.Description        = "Stop Athlete OS"
 $stopLink.Save()
 Write-Ok "stop-athlete-os shortcut created on Desktop"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Phase 8 — First launch
-# ─────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
+# Phase 8 - First launch
+# ------------------------------------------------------------------------------
 
-Write-Step "Phase 8 — First launch"
-Write-Host "─────────────────────────────────────────────────────" -ForegroundColor DarkGray
+Write-Step "Phase 8 - First launch"
+Write-Host "-----------------------------------------------------" -ForegroundColor DarkGray
 Write-Host "`nInstallation complete!" -ForegroundColor Green
 Write-Host "Starting Athlete OS for the first time...`n" -ForegroundColor White
 
-# Start all services
-Start-Process cmd -ArgumentList "/k", "cd /d `"$scriptDir\api`" && node src/index.js" `
+# Start all services - use WorkingDirectory to avoid cd chains
+Start-Process cmd -ArgumentList @("/k", "node src/index.js") `
+    -WorkingDirectory "$scriptDir\api" `
     -WindowStyle Normal
-Write-Ok "API — running on port 3000"
+Write-Ok "API - running on port 3000"
 Start-Sleep 3
 
-Start-Process cmd -ArgumentList "/k", "cd /d `"$scriptDir\coaching-engine`" && node src/index.js" `
+Start-Process cmd -ArgumentList @("/k", "node src/index.js") `
+    -WorkingDirectory "$scriptDir\coaching-engine" `
     -WindowStyle Normal
-Write-Ok "Coaching engine — running"
+Write-Ok "Coaching engine - running"
 Start-Sleep 2
 
-Start-Process cmd -ArgumentList "/k", "cd /d `"$scriptDir\knowledge-engine`" && node src/index.js" `
+Start-Process cmd -ArgumentList @("/k", "node src/index.js") `
+    -WorkingDirectory "$scriptDir\knowledge-engine" `
     -WindowStyle Normal
-Write-Ok "Knowledge engine — running"
+Write-Ok "Knowledge engine - running"
 Start-Sleep 1
 
-Start-Process cmd -ArgumentList "/k", "cd /d `"$scriptDir\messaging-service`" && node src/index.js" `
+Start-Process cmd -ArgumentList @("/k", "node src/index.js") `
+    -WorkingDirectory "$scriptDir\messaging-service" `
     -WindowStyle Normal
-Write-Ok "Messaging service — running"
+Write-Ok "Messaging service - running"
 Start-Sleep 1
 
-Start-Process cmd -ArgumentList "/k", "cd /d `"$scriptDir\frontend`" && npm run preview" `
+Start-Process cmd -ArgumentList @("/k", "npm run preview") `
+    -WorkingDirectory "$scriptDir\frontend" `
     -WindowStyle Normal
-Write-Ok "Frontend — starting on port 4173"
+Write-Ok "Frontend - starting on port 4173"
 Start-Sleep 4
 
 Write-Host "`nOpening http://localhost:4173 ..." -ForegroundColor Cyan
 Start-Process "http://localhost:4173"
 
-Write-Host "`n" -NoNewline
+Write-Host "`n"
 Write-Host "Welcome to Athlete OS. Coach Ri is ready." -ForegroundColor Green
 Write-Host "`nDatabase: always-on (Docker auto-starts with Docker Desktop)" -ForegroundColor Gray
 Write-Host "Daily use: double-click start-athlete-os on your Desktop" -ForegroundColor Gray
