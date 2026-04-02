@@ -4,10 +4,33 @@ title Athlete OS — Starting
 echo Starting Athlete OS...
 echo.
 
-REM Start Docker and database
-echo [1/5] Starting database...
+REM -----------------------------------------------------------------------
+REM Step 0 — Ensure Docker is running and database container is up
+REM -----------------------------------------------------------------------
+echo [0/6] Checking Docker...
+docker info >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: Docker is not running. Please start Docker Desktop and try again.
+    pause
+    exit /b 1
+)
+
+echo [1/6] Starting database container...
 docker start athleteos_db >nul 2>&1
-timeout /t 3 /nobreak >nul
+REM Wait up to 10s for Postgres to accept connections
+set /a attempts=0
+:wait_db
+set /a attempts+=1
+docker exec athleteos_db pg_isready -U postgres >nul 2>&1
+if errorlevel 1 (
+    if %attempts% lss 10 (
+        timeout /t 1 /nobreak >nul
+        goto wait_db
+    )
+    echo WARN: Database may not be ready yet — proceeding anyway.
+) else (
+    echo      Database ready.
+)
 
 REM Start API
 echo [2/6] Starting API...
