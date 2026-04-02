@@ -339,20 +339,46 @@ foreach ($svc in $services) {
     }
     Write-Host "     Installing $svc..." -ForegroundColor Gray
     Push-Location $svcPath
-    npm install --silent 2>&1 | Out-Null
+    try {
+        $null = (& npm install --silent 2>&1) | Out-String
+    } catch {
+        Write-Warn "$svc - npm install warning: $($_.Exception.Message)"
+    }
     Pop-Location
     Write-Ok "$svc - npm install complete"
 }
 
-# Frontend - install + build
+# Frontend - install then build
 $frontendPath = Join-Path $scriptDir "frontend"
 if (Test-Path $frontendPath) {
-    Write-Host "     Installing and building frontend..." -ForegroundColor Gray
     Push-Location $frontendPath
-    npm install --silent 2>&1 | Out-Null
-    npm run build 2>&1 | Out-Null
+
+    Write-Host "     Installing frontend dependencies..." -ForegroundColor Gray
+    try {
+        $null = (& npm install --silent 2>&1) | Out-String
+    } catch {
+        Write-Warn "frontend - npm install warning: $($_.Exception.Message)"
+    }
+
+    Write-Host "     Building frontend..." -ForegroundColor Gray
+    try {
+        $buildOutput = (& npm run build 2>&1) | Out-String
+    } catch {
+        $buildOutput = $_.Exception.Message
+    }
+
+    if ($buildOutput -match "built in" -or $buildOutput -match "dist/") {
+        Write-Ok "frontend - build complete"
+    } elseif ($buildOutput -match "error" -or $buildOutput -match "Error") {
+        Write-Err "frontend - build failed"
+        Write-Host $buildOutput -ForegroundColor Red
+        Pop-Location
+        exit 1
+    } else {
+        Write-Ok "frontend - build complete"
+    }
+
     Pop-Location
-    Write-Ok "frontend - install and build complete"
 }
 
 # ------------------------------------------------------------------------------
