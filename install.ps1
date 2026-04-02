@@ -276,7 +276,11 @@ if (-not (Test-Path $extFile)) {
 }
 Write-Host "     Installing extensions (timescaledb, pgvector, uuid-ossp)..." -ForegroundColor Gray
 $extContent = Get-Content $extFile -Raw -Encoding UTF8
-$extOutput  = $extContent | docker exec -i athleteos_db psql -U postgres -d athleteos 2>&1
+try {
+    $extOutput = ($extContent | docker exec -i athleteos_db psql -U postgres -d athleteos 2>&1) | Out-String
+} catch {
+    $extOutput = $_.Exception.Message
+}
 if ($extOutput -match "ERROR:") {
     Write-Err "Extensions failed to install. Output:`n$extOutput"
     Write-Err "TimescaleDB and pgvector must be enabled before proceeding."
@@ -307,7 +311,11 @@ foreach ($sqlFile in $sqlFiles) {
         continue
     }
     $content = Get-Content $fullPath -Raw -Encoding UTF8
-    $output  = $content | docker exec -i athleteos_db psql -U postgres -d athleteos 2>&1
+    try {
+        $output = ($content | docker exec -i athleteos_db psql -U postgres -d athleteos 2>&1) | Out-String
+    } catch {
+        $output = $_.Exception.Message
+    }
     if ($output -match "ERROR:") {
         Write-Warn "$sqlFile - completed with errors (check output below)"
         Write-Host ($output | Select-String "ERROR:" | ForEach-Object { "     $_" }) -ForegroundColor Yellow
