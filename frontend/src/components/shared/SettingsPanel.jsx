@@ -4,6 +4,7 @@ import { useTheme } from '../../context/ThemeContext.jsx'
 import { useAthlete } from '../../context/AthleteContext.jsx'
 import { useApi, useFetch } from '../../hooks/useApi.js'
 import { usePrefs } from '../../hooks/usePrefs.js'
+import { API_KEY } from '../../config.js'
 
 // ---------------------------------------------------------------------------
 // Section wrapper
@@ -311,7 +312,7 @@ export default function SettingsPanel({ open, onClose }) {
               />
             </Row>
             <Row label="API key">
-              <span className="text-xs font-mono text-gray-400">sk-local-kzS5FHuBZ6TNI214</span>
+              <span className="text-xs font-mono text-gray-400">{API_KEY}</span>
             </Row>
           </Section>
 

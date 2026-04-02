@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import axios from 'axios'
+import { API_KEY } from '../config.js'
 
 const AthleteContext = createContext(null)
 
@@ -14,8 +15,8 @@ export function AthleteProvider({ children }) {
     setError(null)
     try {
       const [athleteRes, snapshotRes] = await Promise.allSettled([
-        axios.get('/api/v1/athlete', { headers: { 'X-API-Key': 'sk-local-kzS5FHuBZ6TNI214' } }),
-        axios.get('/api/v1/fitness/snapshot', { headers: { 'X-API-Key': 'sk-local-kzS5FHuBZ6TNI214' } }),
+        axios.get('/api/v1/athlete', { headers: { 'X-API-Key': API_KEY } }),
+        axios.get('/api/v1/fitness/snapshot', { headers: { 'X-API-Key': API_KEY } }),
       ])
       if (athleteRes.status === 'fulfilled') setAthlete(athleteRes.value.data)
       if (snapshotRes.status === 'fulfilled') setSnapshot(snapshotRes.value.data)

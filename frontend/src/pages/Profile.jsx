@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAthlete } from '../context/AthleteContext.jsx'
 import { useApi, useFetch } from '../hooks/useApi.js'
+import { API_KEY } from '../config.js'
 
 // ---------------------------------------------------------------------------
 // Shared field components
@@ -357,7 +358,7 @@ export default function Profile() {
             {error ?? 'API did not return an athlete record. Make sure the API is running on port 3000 and the athlete record exists.'}
           </p>
           <p className="text-xs text-red-500 dark:text-red-400 mt-2 font-mono">
-            GET /api/v1/athlete · X-API-Key: sk-local-kzS5FHuBZ6TNI214
+            GET /api/v1/athlete · X-API-Key: {API_KEY}
           </p>
           <button
             onClick={reloadAthlete}

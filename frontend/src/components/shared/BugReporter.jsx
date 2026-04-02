@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Bug, X } from 'lucide-react'
 import axios from 'axios'
+import { API_KEY } from '../../config.js'
 
-const API_HEADERS = { 'X-API-Key': 'sk-local-kzS5FHuBZ6TNI214' }
+const API_HEADERS = { 'X-API-Key': API_KEY }
 
 export default function BugReporter() {
   const [open,        setOpen]        = useState(false)

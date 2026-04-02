@@ -1,5 +1,8 @@
 .env
+frontend/.env
 node_modules/
+bug_reports.json
+bulk_import_log.json
 *.log
 watched-activities/processed/
 watched-activities/failed/

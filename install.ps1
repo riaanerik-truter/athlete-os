@@ -246,18 +246,19 @@ DISCORD_CHANNEL_ID=$discordChannelId
 DISCORD_GUILD_ID=$discordGuildId
 "@
 
+$frontendEnv = @"
+VITE_API_KEY=$apiKey
+VITE_API_URL=http://localhost:3000
+VITE_WS_URL=ws://localhost:3001
+VITE_COACHING_ENGINE_URL=http://localhost:3002
+"@
+
 Set-Content -Path "$scriptDir\api\.env"               -Value $apiEnv       -Encoding UTF8
 Set-Content -Path "$scriptDir\ingestion\.env"         -Value $ingestionEnv -Encoding UTF8
 Set-Content -Path "$scriptDir\coaching-engine\.env"   -Value $coachingEnv  -Encoding UTF8
 Set-Content -Path "$scriptDir\knowledge-engine\.env"  -Value $knowledgeEnv -Encoding UTF8
 Set-Content -Path "$scriptDir\messaging-service\.env" -Value $messagingEnv -Encoding UTF8
-
-# Update frontend API key
-$frontendApiFile = "$scriptDir\frontend\src\hooks\useApi.js"
-if (Test-Path $frontendApiFile) {
-    (Get-Content $frontendApiFile) -replace "const API_KEY = '.*'", "const API_KEY = '$apiKey'" |
-        Set-Content $frontendApiFile -Encoding UTF8
-}
+Set-Content -Path "$scriptDir\frontend\.env"          -Value $frontendEnv  -Encoding UTF8
 
 Write-Ok "Configuration written to all .env files"
 

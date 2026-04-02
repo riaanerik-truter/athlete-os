@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
+import { API_KEY } from '../config.js'
 
-const API_KEY = 'sk-local-kzS5FHuBZ6TNI214'
-const HEADERS  = { 'X-API-Key': API_KEY }
+const HEADERS = { 'X-API-Key': API_KEY }
 
 // ---------------------------------------------------------------------------
 // useApi â€” for mutations (POST, PATCH, DELETE) and ad-hoc fetches

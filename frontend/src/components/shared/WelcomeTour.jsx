@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAthlete } from '../../context/AthleteContext.jsx'
 import axios from 'axios'
-
-const API_KEY = 'sk-local-kzS5FHuBZ6TNI214'
+import { API_KEY } from '../../config.js'
 
 const STEPS = [
   {

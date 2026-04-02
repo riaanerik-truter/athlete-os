@@ -7,9 +7,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import axios from 'axios'
+import { API_KEY, WS_URL } from '../config.js'
 
-const WS_URL      = 'ws://localhost:3001'
-const API_HEADERS = { 'X-API-Key': 'sk-local-kzS5FHuBZ6TNI214' }
+const API_HEADERS = { 'X-API-Key': API_KEY }
 const MAX_RECONNECT_DELAY = 30_000
 const HISTORY_LIMIT       = 40
 
