@@ -396,7 +396,8 @@ $apiProc = Start-Process powershell `
     -WindowStyle Hidden `
     -PassThru
 
-Start-Sleep 5
+Write-Host "     Waiting for API to be ready..." -ForegroundColor Gray
+Start-Sleep 8
 
 $athleteData = @{
     name          = $athleteName
@@ -406,20 +407,35 @@ $athleteData = @{
     methodology   = "friel"
 }
 
+$createSuccess = $false
 try {
-    $null = Invoke-RestMethod `
+    $createResponse = Invoke-RestMethod `
         -Uri "http://localhost:3000/api/v1/athlete" `
         -Method POST `
         -Headers @{ "X-API-Key" = $apiKey; "Content-Type" = "application/json" } `
-        -Body ($athleteData | ConvertTo-Json) `
-        -ErrorAction SilentlyContinue
-    Write-Ok "Athlete profile created for $athleteName"
+        -Body ($athleteData | ConvertTo-Json)
+    $createSuccess = $true
 } catch {
-    if ($_.Exception.Response -ne $null -and $_.Exception.Response.StatusCode.value__ -eq 409) {
-        Write-Ok "Athlete profile already exists - continuing"
-    } else {
-        Write-Warn "Could not create athlete profile automatically. You can do this from the dashboard."
+    $statusCode = $_.Exception.Response.StatusCode.value__
+    if ($statusCode -eq 409) {
+        $createSuccess = $true   # already exists, proceed to verification
     }
+    # any other error: createSuccess stays false
+}
+
+# Verify the record exists regardless of whether we just created it or it already existed
+$verifySuccess = $false
+try {
+    $verifyResponse = Invoke-RestMethod `
+        -Uri "http://localhost:3000/api/v1/athlete" `
+        -Method GET `
+        -Headers @{ "X-API-Key" = $apiKey }
+    if ($verifyResponse.id) {
+        $verifySuccess = $true
+        $confirmedName = $verifyResponse.name
+    }
+} catch {
+    $verifySuccess = $false
 }
 
 # Stop temporary API
@@ -429,6 +445,14 @@ try {
     Write-Host "Warning: $($_.Exception.Message)" -ForegroundColor Yellow
 }
 Start-Sleep 2
+
+if (-not $verifySuccess) {
+    Write-Err "Athlete record creation failed."
+    Write-Err "Check that the API is running and try again."
+    exit 1
+}
+
+Write-Ok "Athlete profile created for $confirmedName"
 Write-Ok "Friel methodology set as default"
 Write-Ok "Zone model ready for $primarySport"
 
