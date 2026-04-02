@@ -3,6 +3,7 @@ import { useAthlete } from '../context/AthleteContext.jsx'
 import { useFetch } from '../hooks/useApi.js'
 import MorningForm from '../components/shared/MorningForm.jsx'
 import { usePrefs } from '../hooks/usePrefs.js'
+import WelcomeTour from '../components/shared/WelcomeTour.jsx'
 
 import KpiCard        from '../components/dashboard/KpiCard.jsx'
 import ReadinessCard  from '../components/dashboard/ReadinessCard.jsx'
@@ -78,10 +79,11 @@ export default function Dashboard() {
 
   return (
     <main className="max-w-screen-xl mx-auto px-4 py-6 space-y-4">
+      <WelcomeTour />
       <MorningForm open={morningFormOpen} onClose={() => setMorningFormOpen(false)} />
 
       {/* Row 1 — Four KPI cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div data-tour="kpi-cards" className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <ReadinessCard
           score={readiness}
           hrvTrend={latestHealth?.hrv_trend ?? null}
@@ -129,14 +131,14 @@ export default function Dashboard() {
         <div className="md:col-span-2">
           <FitnessChart periods={periods} weeksBack={prefs.chart_range} />
         </div>
-        <div>
+        <div data-tour="session-list">
           <SessionList />
         </div>
       </div>
 
       {/* Row 3 — Race prediction (left) + Health (right) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="md:col-span-2">
+        <div data-tour="race-prediction" className="md:col-span-2">
           <RacePrediction />
         </div>
         <div>

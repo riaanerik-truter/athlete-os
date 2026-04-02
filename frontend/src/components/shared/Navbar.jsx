@@ -36,7 +36,13 @@ export default function Navbar({ onSettingsOpen }) {
         {/* Desktop nav links */}
         <div className="hidden md:flex items-center gap-6">
           {NAV_LINKS.map(({ to, label }) => (
-            <NavLink key={to} to={to} end={to === '/'} className={navLinkClass}>
+            <NavLink
+              key={to}
+              to={to}
+              end={to === '/'}
+              className={navLinkClass}
+              data-tour={to === '/knowledge' ? 'nav-knowledge' : undefined}
+            >
               {label}
             </NavLink>
           ))}
@@ -49,6 +55,7 @@ export default function Navbar({ onSettingsOpen }) {
           <button
             onClick={onSettingsOpen}
             aria-label="Open settings"
+            data-tour="nav-settings"
             className="p-2 rounded-md text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           >
             <Settings className="w-5 h-5" />

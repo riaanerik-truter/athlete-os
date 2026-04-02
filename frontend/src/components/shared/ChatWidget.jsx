@@ -155,7 +155,7 @@ export default function ChatWidget() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-30 flex flex-col items-end gap-2">
+    <div data-tour="chat-widget" className="fixed bottom-6 right-6 z-30 flex flex-col items-end gap-2">
 
       {/* Expanded chat panel */}
       {open && (
