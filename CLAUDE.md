@@ -536,12 +536,22 @@ Build status:
 Commit: b6d226f — installer, welcome tour, README, setup guide - V1 complete
 
 **Additional items completed post-V1:**
-- FIT file parser (ingestion service)
-- In-app bug reporter (BugReporter.jsx + POST /bugs)
-- Playwright test suite (5 critical path tests, 5/5 pass)
-- Welcome tour scroll fix
-- Web chat WebSocket stability fix
+- FIT file parser implemented (replaces stub in ingestion service)
+- In-app bug reporter (BugReporter.jsx + POST /bugs); z-index fixed, now visible
+- Playwright test suite (5 critical path tests, 5/5 pass); tests updated post-fixes
+- Welcome tour: scroll into view fixed
+- Web chat: WebSocket stability fixed
 - Settings training section (primary sport + methodology)
+- Bulk import fixed: DI_CONNECT folder detection, FIT zip extraction, endpoint path corrected
+- Bulk import: auto-backfill after import
+- Fitness history backfill: POST /fitness/backfill — 90 snapshots created from 25 imported sessions (Jul 2024 – Apr 2026)
+- Fitness chart fixed: weekly snapshot data (slice factor corrected), timezone date handling (snapshot_date returned as plain YYYY-MM-DD), UTC date methods in week-key calculation
+- Dashboard crash fixed: invalid date handling in chartHelpers and formatters
+- API usage endpoint path corrected
+- Frontend .env created with correct API key
+- All service .env files consistent
+- start.bat: Docker readiness check added, ingestion service terminal added
+- Installer: athlete creation verification added (Phase 6)
 
 Bug reports log to: AthleteOS/bug_reports.json
 Run tests: cd frontend && npx playwright test
