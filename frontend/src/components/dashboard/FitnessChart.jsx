@@ -32,12 +32,14 @@ const EMPTY_MSG_CLASS = 'flex items-center justify-center h-48 text-sm text-gray
  *   weeksBack number — how many weeks to show (default 12)
  */
 export default function FitnessChart({ periods = [], weeksBack = 12 }) {
-  const { data: raw, loading, error } = useFetch('/fitness/ctlatl')
+  const { data: raw, loading, error } = useFetch('/fitness/snapshots')
 
   if (loading) return <div className={EMPTY_MSG_CLASS}>Loading fitness data…</div>
   if (error)   return <div className={EMPTY_MSG_CLASS}>Could not load fitness data</div>
 
-  const history = Array.isArray(raw) ? raw : (raw?.data ?? [])
+  // Normalize snapshot_date → date so buildFitnessChartData can use it
+  const snaps = Array.isArray(raw) ? raw : (raw?.data ?? [])
+  const history = snaps.map(s => ({ ...s, date: s.snapshot_date }))
   const chartData = buildFitnessChartData(history, weeksBack)
 
   if (!chartData.length) {

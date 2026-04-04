@@ -179,6 +179,17 @@ export async function processBulkExportFolder(folderPath, processedDir) {
       'bulk import: processing complete'
     );
 
+    // Trigger fitness history backfill so the chart reflects newly imported data
+    try {
+      const backfill = await apiClient.post('/fitness/backfill', {});
+      log.info(
+        { created: backfill?.created, skipped: backfill?.skipped },
+        'bulk import: snapshot backfill complete'
+      );
+    } catch (backfillErr) {
+      log.warn({ err: backfillErr.message }, 'bulk import: snapshot backfill failed (non-critical)');
+    }
+
   } catch (err) {
     log.error({ folderPath, err: err.message }, 'bulk import: unexpected error');
     status = 'error';

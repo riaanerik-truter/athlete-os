@@ -13,7 +13,7 @@ import pino from 'pino';
 import express from 'express';
 
 import { runWeeklyPlanner }      from './jobs/weeklyPlanner.js';
-import { runSnapshotWriter }     from './jobs/snapshotWriter.js';
+import { runSnapshotWriter, backfillSnapshots } from './jobs/snapshotWriter.js';
 import { runProgressionChecker } from './jobs/progressionChecker.js';
 import { runDailyDigest }        from './jobs/dailyDigest.js';
 import { apiClient }             from './api/client.js';
@@ -64,6 +64,7 @@ const JOB_RUNNERS = {
   snapshot_writer:     () => runSnapshotWriter(),
   progression_checker: () => runProgressionChecker(),
   daily_digest:        () => runDailyDigest(),
+  backfill_snapshots:  () => backfillSnapshots(),
 };
 
 function registerCronJob(name, cronExpr, runner) {

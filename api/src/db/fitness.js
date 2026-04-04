@@ -79,6 +79,18 @@ export async function createSnapshot(pool, athleteId, data) {
 }
 
 /**
+ * Returns all existing snapshot dates for the athlete.
+ * Used by backfill to skip weeks that already have a snapshot.
+ */
+export async function getExistingSnapshotDates(pool, athleteId) {
+  const result = await pool.query(`
+    SELECT snapshot_date::text FROM fitness_snapshot
+    WHERE athlete_id = $1
+  `, [athleteId]);
+  return new Set(result.rows.map(r => r.snapshot_date));
+}
+
+/**
  * Returns TSS history from completed_session for CTL/ATL/TSB seeding.
  * Includes TP-supplied ctl/atl/tsb values when present — calculator uses these
  * as authoritative where available and fills gaps with its own calculation.

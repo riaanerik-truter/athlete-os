@@ -25,11 +25,12 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { getAthleteId } from '../db/sync.js';
-import { replaceZoneModel, updateAthlete } from '../db/athlete.js';
+import { replaceZoneModel, updateAthlete, getAthlete } from '../db/athlete.js';
 import {
   getLatestSnapshot,
   getSnapshotHistory,
   createSnapshot,
+  getExistingSnapshotDates,
   getFieldTests,
   createFieldTest,
   markZonesUpdated,
@@ -469,6 +470,194 @@ router.post('/health/daily', async (req, res, next) => {
     }
     next(err);
   }
+});
+
+// ---------------------------------------------------------------------------
+// POST /fitness/backfill
+// Calculates and writes weekly CTL/ATL/TSB snapshots for all historical sessions.
+// Idempotent — skips weeks where a snapshot already exists.
+// ---------------------------------------------------------------------------
+
+// EMA constants (Coggan)
+const CTL_K = 42;
+const ATL_K = 7;
+
+function bfToDateStr(d) {
+  return new Date(d).toISOString().slice(0, 10);
+}
+
+function bfAllDaysBetween(start, end) {
+  const days = [];
+  const cur  = new Date(start + 'T00:00:00Z');
+  const last = new Date(end   + 'T00:00:00Z');
+  while (cur <= last) {
+    days.push(cur.toISOString().slice(0, 10));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return days;
+}
+
+// Returns the Sunday of the ISO week containing the given YYYY-MM-DD date.
+function bfWeekSunday(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  const dow = d.getUTCDay(); // 0=Sun, 1=Mon, …
+  const sunday = new Date(d);
+  if (dow !== 0) sunday.setUTCDate(d.getUTCDate() + (7 - dow));
+  return sunday.toISOString().slice(0, 10);
+}
+
+function bfOffsetDate(dateStr, days) {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function bfCalcReadiness(metrics, tsb, avg3dayHr) {
+  const HRV_SCORE = { balanced: 100, unbalanced: 60, low: 30, poor: 0 };
+  const hrv = HRV_SCORE[metrics?.hrv_status] ?? 50;
+
+  let tsbScore;
+  if (tsb > 10)  tsbScore = 100;
+  else if (tsb > 0)   tsbScore = 80;
+  else if (tsb > -10) tsbScore = 60;
+  else if (tsb > -20) tsbScore = 40;
+  else tsbScore = 20;
+
+  const sleep    = metrics?.sleep_score  ?? 50;
+  const wellness = (metrics?.wellness_score ?? 5) * 10;
+
+  let hrTrend = 80;
+  if (metrics?.resting_hr && avg3dayHr) {
+    const diff = metrics.resting_hr - avg3dayHr;
+    if (diff > 5)  hrTrend = 30;
+    else if (diff > 2) hrTrend = 60;
+    else if (diff >= 0) hrTrend = 80;
+    else hrTrend = 100;
+  }
+
+  return Math.max(0, Math.min(100, Math.round(
+    hrv      * 0.35 +
+    tsbScore * 0.25 +
+    sleep    * 0.20 +
+    wellness * 0.10 +
+    hrTrend  * 0.10
+  )));
+}
+
+router.post('/fitness/backfill', async (req, res, next) => {
+  try {
+    const athleteId = await getAthleteId(pool);
+    if (!athleteId) return notFound(res, 'Athlete not found');
+
+    // 1. Full TSS history (all time)
+    const tssRows = await getTssHistory(pool, athleteId, { limit: 10000 });
+    if (!tssRows.length) {
+      return res.json({ created: 0, skipped: 0, total_weeks: 0, message: 'No session TSS data found' });
+    }
+
+    // 2. Skip weeks that already have a snapshot
+    const existingDates = await getExistingSnapshotDates(pool, athleteId);
+
+    // 3. Athlete anchors (current values — best we have for historical snapshots)
+    const athlete = await getAthlete(pool);
+
+    // 4. Build per-date TSS + duration map (multiple sessions on same day sum together)
+    const byDate = new Map();
+    for (const row of tssRows) {
+      const d = bfToDateStr(row.activity_date);
+      const prev = byDate.get(d) ?? { tss: 0, duration_sec: 0 };
+      byDate.set(d, {
+        tss:         prev.tss          + Number(row.tss),
+        duration_sec: prev.duration_sec + (Number(row.duration_sec) || 0),
+      });
+    }
+
+    // 5. Walk every calendar day from first session to today, building CTL/ATL/TSB
+    const firstDate = bfToDateStr(tssRows[0].activity_date);
+    const today     = new Date().toISOString().slice(0, 10);
+    const days      = bfAllDaysBetween(firstDate, today);
+
+    let ctl = 0, atl = 0;
+    const dailyLoad = []; // { date, tss, duration_sec, ctl, atl, tsb }
+
+    for (const date of days) {
+      const entry = byDate.get(date) ?? { tss: 0, duration_sec: 0 };
+      const tsb   = ctl - atl; // TSB is yesterday's CTL - ATL
+      ctl = ctl + (entry.tss - ctl) / CTL_K;
+      atl = atl + (entry.tss - atl) / ATL_K;
+      dailyLoad.push({ date, tss: entry.tss, duration_sec: entry.duration_sec, ctl, atl, tsb });
+    }
+
+    // 6. Group daily entries by ISO week, keyed on that week's Sunday
+    const weekMap = new Map(); // sundayDate → dailyLoad entries[]
+    for (const entry of dailyLoad) {
+      const sunday = bfWeekSunday(entry.date);
+      if (!weekMap.has(sunday)) weekMap.set(sunday, []);
+      weekMap.get(sunday).push(entry);
+    }
+
+    // 7. Fetch all daily_metrics once, index by date
+    const metricsRows = await getDailyMetrics(pool, athleteId, { from: firstDate, to: today });
+    const metricsByDate = new Map();
+    for (const m of metricsRows) {
+      metricsByDate.set(bfToDateStr(m.date), m);
+    }
+
+    // 8. Write one snapshot per week
+    let created = 0, skipped = 0;
+
+    for (const [sunday, entries] of weekMap) {
+      // Skip future weeks (Sunday hasn't arrived yet)
+      if (sunday > today) continue;
+
+      if (existingDates.has(sunday)) { skipped++; continue; }
+
+      // Use the last day in the week that had actual data (or Sunday itself)
+      const lastEntry = entries[entries.length - 1];
+
+      // CTL/ATL/TSB from Sunday's final state
+      const sundayEntry = entries.find(e => e.date === sunday) ?? lastEntry;
+
+      // Readiness — prefer Sunday metrics, fall back to last day with data
+      const metrics = metricsByDate.get(sunday) ?? metricsByDate.get(lastEntry.date) ?? {};
+
+      // 3-day avg resting HR prior to Sunday
+      const hrValues = [];
+      for (let i = 1; i <= 3; i++) {
+        const m = metricsByDate.get(bfOffsetDate(sunday, -i));
+        if (m?.resting_hr) hrValues.push(Number(m.resting_hr));
+      }
+      const avg3dayHr = hrValues.length
+        ? hrValues.reduce((a, b) => a + b, 0) / hrValues.length
+        : null;
+
+      const readiness = bfCalcReadiness(metrics, sundayEntry.tsb, avg3dayHr);
+
+      // Weekly totals
+      const weeklyTss = Math.round(entries.reduce((s, e) => s + e.tss, 0) * 10) / 10;
+      const weeklyVolHrs = Math.round(entries.reduce((s, e) => s + e.duration_sec, 0) / 3600 * 100) / 100;
+
+      const payload = {
+        snapshot_date:     sunday,
+        ctl:               Math.round(sundayEntry.ctl * 10) / 10,
+        atl:               Math.round(sundayEntry.atl * 10) / 10,
+        tsb:               Math.round(sundayEntry.tsb * 10) / 10,
+        readiness_score:   readiness,
+        weekly_tss:        weeklyTss || undefined,
+        weekly_volume_hrs: weeklyVolHrs || undefined,
+        ftp_current:       athlete?.ftp_watts        ?? undefined,
+        vdot_current:      athlete?.vdot             ?? undefined,
+        css_current_sec:   athlete?.css_per_100m_sec ?? undefined,
+      };
+
+      // Strip undefined/null so strict schema accepts it
+      const clean = Object.fromEntries(Object.entries(payload).filter(([, v]) => v != null));
+      await createSnapshot(pool, athleteId, clean);
+      created++;
+    }
+
+    res.json({ created, skipped, total_weeks: weekMap.size });
+  } catch (err) { next(err); }
 });
 
 export default router;

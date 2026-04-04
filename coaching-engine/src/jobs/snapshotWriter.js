@@ -7,6 +7,9 @@
 //   3. Fetch current fitness anchors from athlete record
 //   4. Fetch most recent completed long ride for decoupling
 //   5. Write fitness_snapshot via POST /fitness/snapshot
+//
+// Also exports backfillSnapshots() — calls POST /fitness/backfill on the API
+// layer to generate weekly snapshots from all historical session data.
 
 import pino from 'pino';
 import { apiClient } from '../api/client.js';
@@ -174,4 +177,24 @@ export async function runSnapshotWriter({ dryRun = false } = {}) {
   log.info('snapshot written to DB');
 
   return { dry_run: false, snapshot, written };
+}
+
+// ---------------------------------------------------------------------------
+// Backfill job
+// ---------------------------------------------------------------------------
+
+/**
+ * Triggers the API layer to backfill weekly fitness snapshots from all historical
+ * session data. Idempotent — weeks that already have a snapshot are skipped.
+ *
+ * @returns {{ created: number, skipped: number, total_weeks: number }}
+ */
+export async function backfillSnapshots() {
+  log.info('snapshot backfill starting');
+  const result = await apiClient.post('/fitness/backfill', {});
+  log.info(
+    { created: result?.created, skipped: result?.skipped, total_weeks: result?.total_weeks },
+    'snapshot backfill complete'
+  );
+  return result;
 }

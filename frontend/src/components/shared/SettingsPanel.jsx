@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext.jsx'
 import { useAthlete } from '../../context/AthleteContext.jsx'
@@ -107,9 +107,11 @@ export default function SettingsPanel({ open, onClose }) {
   const { data: methodologyData }  = useFetch('/methodologies',  { skip: !open })
 
   // Local state for DB-backed fields
-  const [timezone,    setTimezone]    = useState('')
-  const [whatsapp,    setWhatsapp]    = useState('')
-  const [savedField,  setSavedField]  = useState(null) // shows inline "Saved" confirmation
+  const [timezone,        setTimezone]        = useState('')
+  const [whatsapp,        setWhatsapp]        = useState('')
+  const [savedField,      setSavedField]      = useState(null) // shows inline "Saved" confirmation
+  const [backfillState,   setBackfillState]   = useState(null) // null | 'running' | { created, skipped }
+  const backfillTimerRef = useRef(null)
 
   useEffect(() => {
     if (athlete) {
@@ -136,6 +138,20 @@ export default function SettingsPanel({ open, onClose }) {
 
   async function triggerSync(source) {
     await apiRequest('POST', '/sync/trigger', { source })
+  }
+
+  async function runBackfill() {
+    if (backfillState === 'running') return
+    setBackfillState('running')
+    clearTimeout(backfillTimerRef.current)
+    try {
+      const result = await apiRequest('POST', '/fitness/backfill', {})
+      setBackfillState(result ?? { created: 0, skipped: 0 })
+      backfillTimerRef.current = setTimeout(() => setBackfillState(null), 6000)
+    } catch {
+      setBackfillState({ error: true })
+      backfillTimerRef.current = setTimeout(() => setBackfillState(null), 4000)
+    }
   }
 
   const syncStatus = Array.isArray(syncData) ? syncData : (syncData?.data ?? [])
@@ -255,6 +271,25 @@ export default function SettingsPanel({ open, onClose }) {
                 Sync now
               </button>
             </Row>
+            <Row
+              label="Fitness history"
+              hint="Backfill CTL/ATL/TSB snapshots from all imported sessions"
+            >
+              <button
+                onClick={runBackfill}
+                disabled={backfillState === 'running'}
+                className="text-xs px-3 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+              >
+                {backfillState === 'running' ? 'Running…' : 'Backfill'}
+              </button>
+            </Row>
+            {backfillState && backfillState !== 'running' && (
+              <p className={`text-xs ${backfillState.error ? 'text-red-500' : 'text-green-600 dark:text-green-400'}`}>
+                {backfillState.error
+                  ? 'Backfill failed — check API is running'
+                  : `Done: ${backfillState.created} created, ${backfillState.skipped} skipped`}
+              </p>
+            )}
           </Section>
 
           {/* 4. Channels */}
