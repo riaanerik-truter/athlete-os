@@ -278,7 +278,13 @@ router.get('/fitness/snapshots', async (req, res, next) => {
 
     res.json({
       data: snaps.map(s => ({
-        snapshot_date:     s.snapshot_date,
+        snapshot_date:     s.snapshot_date instanceof Date
+          ? [
+              s.snapshot_date.getFullYear(),
+              String(s.snapshot_date.getMonth() + 1).padStart(2, '0'),
+              String(s.snapshot_date.getDate()).padStart(2, '0')
+            ].join('-')
+          : String(s.snapshot_date).slice(0, 10),
         ctl:               num(s.ctl),
         atl:               num(s.atl),
         tsb:               num(s.tsb),

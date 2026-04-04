@@ -31,7 +31,14 @@ export async function getSnapshotHistory(pool, athleteId, { from, to } = {}) {
   if (to)   { values.push(to);   conditions.push(`snapshot_date <= $${values.length}`); }
 
   const result = await pool.query(`
-    SELECT *
+    SELECT
+      snapshot_date::text AS snapshot_date,
+      week_id,
+      ctl, atl, tsb,
+      ftp_current, w_per_kg, vdot_current, css_current_sec,
+      ef_7day_avg, ef_trend, decoupling_last_long,
+      resting_hr_avg, hrv_7day_avg, readiness_score,
+      weekly_volume_hrs, weekly_tss, ytd_volume_hrs
     FROM fitness_snapshot
     WHERE ${conditions.join(' AND ')}
     ORDER BY snapshot_date ASC
