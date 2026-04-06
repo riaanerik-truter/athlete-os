@@ -320,3 +320,131 @@ export async function createDailyMetrics(pool, athleteId, data) {
   ]);
   return result.rows[0];
 }
+
+// ---------------------------------------------------------------------------
+// Ability scores
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetches all raw data needed to calculate Friel ability scores.
+ * Returns sessions (8 weeks), snapshot history (10 entries), field tests, athlete, and stream max.
+ */
+export async function getAbilitiesData(pool, athleteId) {
+  const [sessionsRes, snapshotHistRes, fieldTestRes, labRes, athleteRes, streamMaxRes] = await Promise.all([
+    pool.query(`
+      SELECT
+        cs.id,
+        cs.activity_date::text AS activity_date,
+        cs.sport,
+        cs.duration_sec,
+        cs.avg_cadence,
+        cs.variability_index,
+        cs.intensity_factor_garmin,
+        cs.avg_power_w,
+        cs.normalized_power_w,
+        cs.elevation_gain_m,
+        cs.distance_m,
+        cs.ef_garmin_calculated,
+        cs.decoupling_pct,
+        cs.zone_distribution,
+        st.code AS session_type_code
+      FROM completed_session cs
+      LEFT JOIN session_type st ON st.id = cs.session_type_id
+      WHERE cs.athlete_id = $1
+        AND cs.activity_date >= CURRENT_DATE - INTERVAL '8 weeks'
+        AND cs.deleted_at IS NULL
+      ORDER BY cs.activity_date ASC
+    `, [athleteId]),
+
+    pool.query(`
+      SELECT
+        snapshot_date::text AS snapshot_date,
+        ef_7day_avg, decoupling_last_long, ef_trend, ctl, atl, tsb
+      FROM fitness_snapshot
+      WHERE athlete_id = $1
+      ORDER BY snapshot_date DESC
+      LIMIT 10
+    `, [athleteId]),
+
+    pool.query(`
+      SELECT
+        sprint_5s_peak_w, sprint_20s_avg_w, vo2max_power_w, avg_power_20min,
+        test_date::text AS test_date
+      FROM field_test
+      WHERE athlete_id = $1 AND sport IN ('cycling', 'mtb')
+      ORDER BY test_date DESC
+      LIMIT 5
+    `, [athleteId]),
+
+    pool.query(`
+      SELECT structured_data, test_date::text AS test_date
+      FROM lab_result
+      WHERE athlete_id = $1
+        AND (test_type ILIKE '%vo2%' OR test_type ILIKE '%maximal%' OR test_type ILIKE '%lab%')
+      ORDER BY test_date DESC
+      LIMIT 1
+    `, [athleteId]),
+
+    pool.query(`SELECT ftp_watts, vdot, weight_kg FROM athlete LIMIT 1`),
+
+    pool.query(`
+      SELECT MAX(ws.power) AS max_power_1s
+      FROM workout_stream ws
+      JOIN completed_session cs ON cs.id = ws.session_id
+      WHERE cs.athlete_id = $1
+        AND cs.activity_date >= CURRENT_DATE - INTERVAL '8 weeks'
+        AND ws.power IS NOT NULL
+    `, [athleteId]),
+  ]);
+
+  return {
+    sessions:        sessionsRes.rows,
+    snapshotHistory: snapshotHistRes.rows,
+    fieldTests:      fieldTestRes.rows,
+    lab:             labRes.rows[0] ?? null,
+    athlete:         athleteRes.rows[0] ?? null,
+    maxPower1s:      streamMaxRes.rows[0]?.max_power_1s ?? null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Zone distribution aggregation
+// ---------------------------------------------------------------------------
+
+/**
+ * Aggregates zone_distribution JSONB from completed sessions for a date range and sport filter.
+ */
+export async function getZoneDistribution(pool, athleteId, { sports = [], from, to } = {}) {
+  const conditions = ['cs.athlete_id = $1', 'cs.deleted_at IS NULL'];
+  const values = [athleteId];
+
+  if (from) { values.push(from); conditions.push(`cs.activity_date >= $${values.length}`); }
+  if (to)   { values.push(to);   conditions.push(`cs.activity_date <= $${values.length}`); }
+  if (sports.length > 0) {
+    values.push(sports);
+    conditions.push(`cs.sport = ANY($${values.length})`);
+  }
+
+  const result = await pool.query(`
+    SELECT
+      COALESCE(SUM((cs.zone_distribution->>'Z1')::float),  0) AS z1_sec,
+      COALESCE(SUM((cs.zone_distribution->>'Z2')::float),  0) AS z2_sec,
+      COALESCE(SUM((cs.zone_distribution->>'Z3')::float),  0) AS z3_sec,
+      COALESCE(SUM((cs.zone_distribution->>'Z4')::float),  0) AS z4_sec,
+      COALESCE(SUM((cs.zone_distribution->>'Z5a')::float), 0) AS z5a_sec,
+      COALESCE(SUM((cs.zone_distribution->>'Z5b')::float), 0) AS z5b_sec,
+      COALESCE(SUM((cs.zone_distribution->>'Z5c')::float), 0) AS z5c_sec,
+      COALESCE(SUM((cs.zone_distribution->>'E')::float),   0) AS e_sec,
+      COALESCE(SUM((cs.zone_distribution->>'M')::float),   0) AS m_sec,
+      COALESCE(SUM((cs.zone_distribution->>'T')::float),   0) AS t_sec,
+      COALESCE(SUM((cs.zone_distribution->>'I')::float),   0) AS i_sec,
+      COALESCE(SUM((cs.zone_distribution->>'R')::float),   0) AS r_sec,
+      COUNT(*) FILTER (WHERE cs.zone_distribution IS NOT NULL) AS sessions_with_zones,
+      COUNT(*)                                                  AS total_sessions,
+      COALESCE(SUM(cs.duration_sec), 0)                        AS total_duration_sec
+    FROM completed_session cs
+    WHERE ${conditions.join(' AND ')}
+  `, values);
+
+  return result.rows[0] ?? {};
+}

@@ -5,15 +5,17 @@ import MorningForm from '../components/shared/MorningForm.jsx'
 import { usePrefs } from '../hooks/usePrefs.js'
 import WelcomeTour from '../components/shared/WelcomeTour.jsx'
 
-import KpiCard        from '../components/dashboard/KpiCard.jsx'
-import ReadinessCard  from '../components/dashboard/ReadinessCard.jsx'
-import FitnessChart   from '../components/dashboard/FitnessChart.jsx'
-import SessionList    from '../components/dashboard/SessionList.jsx'
-import RacePrediction from '../components/dashboard/RacePrediction.jsx'
-import HealthMetrics  from '../components/dashboard/HealthMetrics.jsx'
-import GoalProgress   from '../components/dashboard/GoalProgress.jsx'
-import DiaryPanel     from '../components/dashboard/DiaryPanel.jsx'
-import UsageSummary   from '../components/dashboard/UsageSummary.jsx'
+import KpiCard          from '../components/dashboard/KpiCard.jsx'
+import ReadinessCard    from '../components/dashboard/ReadinessCard.jsx'
+import FitnessChart     from '../components/dashboard/FitnessChart.jsx'
+import SessionList      from '../components/dashboard/SessionList.jsx'
+import RacePrediction   from '../components/dashboard/RacePrediction.jsx'
+import HealthMetrics    from '../components/dashboard/HealthMetrics.jsx'
+import GoalProgress     from '../components/dashboard/GoalProgress.jsx'
+import DiaryPanel       from '../components/dashboard/DiaryPanel.jsx'
+import UsageSummary     from '../components/dashboard/UsageSummary.jsx'
+import AbilityTracker   from '../components/dashboard/AbilityTracker.jsx'
+import ZoneDistribution from '../components/dashboard/ZoneDistribution.jsx'
 
 // ---------------------------------------------------------------------------
 // KPI derivation helpers
@@ -126,7 +128,13 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Row 2 — Fitness chart (left) + This week (right) */}
+      {/* Row 2 — Ability Tracker (full width) */}
+      <AbilityTracker />
+
+      {/* Row 3 — Zone Distribution (full width) */}
+      <ZoneDistribution />
+
+      {/* Row 4 — Fitness chart (left) + This week (right) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="md:col-span-2">
           <FitnessChart periods={periods} weeksBack={prefs.chart_range} />
@@ -136,7 +144,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Row 3 — Race prediction (left) + Health (right) */}
+      {/* Row 5 — Race prediction (left) + Health (right) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div data-tour="race-prediction" className="md:col-span-2">
           <RacePrediction />
@@ -146,10 +154,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Row 4 — Goals (full width) */}
+      {/* Row 6 — Goals (full width) */}
       <GoalProgress />
 
-      {/* Row 5 — Diary (left) + Usage (right) */}
+      {/* Row 7 — Diary (left) + Usage (right) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <DiaryPanel />
         <UsageSummary />

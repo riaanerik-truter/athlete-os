@@ -38,7 +38,9 @@ import {
   createLabResult,
   getDailyMetrics,
   createDailyMetrics,
-  getTssHistory
+  getTssHistory,
+  getAbilitiesData,
+  getZoneDistribution
 } from '../db/fitness.js';
 
 const router = Router();
@@ -663,6 +665,436 @@ router.post('/fitness/backfill', async (req, res, next) => {
     }
 
     res.json({ created, skipped, total_weeks: weekMap.size });
+  } catch (err) { next(err); }
+});
+
+// ---------------------------------------------------------------------------
+// GET /fitness/abilities
+// Returns six Friel ability scores with metric values and 7-week history.
+// ---------------------------------------------------------------------------
+
+const ABILITY_DEFS = [
+  {
+    key: 'aerobic_endurance', name: 'Aerobic Endurance', subLabel: 'Base fitness foundation',
+    blockNotes: {
+      base:        'Primary focus — expect steady EF and decoupling improvement week-on-week',
+      build:       'Maintenance phase — monitor decoupling before advancing to Build',
+      peak:        'Slight dip is normal — volume is reduced for race taper',
+      race:        'Expected low — training load is minimal for race freshness',
+      preparation: 'Building aerobic base — frequency before duration',
+      default:     'Track EF trend and decoupling % to gauge readiness to progress',
+    },
+    metrics: [
+      { key: 'ef_7day_avg',    label: 'EF 7-day avg',              weight: 'high', unit: '',  decimals: 2, range: [0.8, 2.0] },
+      { key: 'decoupling_pct', label: 'Decoupling last long ride', weight: 'high', unit: '%', decimals: 1, range: [15, 0]    },
+      { key: 'z1z2_share',     label: 'Z1-Z2 volume share 4wk',   weight: 'med',  unit: '%', decimals: 0, range: [0, 85]    },
+      { key: 'long_ride_count',label: 'Long rides >90min 4wk',    weight: 'low',  unit: '',  decimals: 0, range: [0, 4]     },
+    ]
+  },
+  {
+    key: 'muscular_force', name: 'Muscular Force', subLabel: 'Strength and force application',
+    blockNotes: {
+      base:        'Primary development window — MF sessions are the training priority',
+      build:       'Transitioning to muscular endurance — MF sessions become less frequent',
+      peak:        'Minimal MF work — neural maintenance patterns only',
+      race:        'No MF sessions — focused on race execution',
+      preparation: 'AA/MT gym strength phase underway — foundation for MF rides',
+      default:     'Peak 5s and 20s power reflect neuromuscular and force recruitment capacity',
+    },
+    metrics: [
+      { key: 'peak_5s_power',  label: 'Peak 5s power',          weight: 'high', unit: 'W',  decimals: 0, range: [300, 1200] },
+      { key: 'peak_20s_power', label: 'Peak 20s power',         weight: 'high', unit: 'W',  decimals: 0, range: [200, 900]  },
+      { key: 'mf_count',       label: 'MF sessions 4wk',        weight: 'med',  unit: '',   decimals: 0, range: [0, 6]      },
+      { key: 'avg_gradient',   label: 'Avg climb gradient 4wk', weight: 'low',  unit: '%',  decimals: 1, range: [0, 8]      },
+    ]
+  },
+  {
+    key: 'speed_skills', name: 'Speed Skills', subLabel: 'Pedalling efficiency and form',
+    blockNotes: {
+      base:        'Good period to develop cadence habits — spin-ups and isolated leg drills',
+      build:       'SS sessions maintain neuromuscular sharpness alongside ME work',
+      peak:        'Form drills keep fast-twitch recruitment patterns active',
+      race:        'Keep legs turning over — short cadence drills are fine',
+      preparation: 'Focus on pedalling mechanics before adding training load',
+      default:     'Avg cadence and variability index reflect pedalling efficiency',
+    },
+    metrics: [
+      { key: 'avg_cadence', label: 'Avg cadence',              weight: 'high', unit: 'rpm', decimals: 0, range: [70, 100]   },
+      { key: 'vi_avg',      label: 'Variability index avg',    weight: 'high', unit: '',    decimals: 2, range: [1.20, 1.00] },
+      { key: 'ss_count',    label: 'SS sessions 4wk',          weight: 'med',  unit: '',    decimals: 0, range: [0, 4]       },
+      { key: 'hc_time_hrs', label: 'High cadence >100rpm 4wk', weight: 'low',  unit: 'hrs', decimals: 1, range: [0, 2]      },
+    ]
+  },
+  {
+    key: 'muscular_endurance', name: 'Muscular Endurance', subLabel: 'Sustained power at threshold',
+    blockNotes: {
+      base:        'Not the focus yet — a small ME stimulus primes the neuromuscular system',
+      build:       'Primary development window — ME sessions dominate the week structure',
+      peak:        'Sharpening phase — reduced ME volume, maintained intensity',
+      race:        'No new ME stimulus — legs are primed for race output',
+      preparation: 'Build aerobic base first — ME work starts in Base',
+      default:     'Track intensity factor on long efforts and time above threshold',
+    },
+    metrics: [
+      { key: 'if_long',       label: 'IF on long efforts',     weight: 'high', unit: '',    decimals: 2, range: [0.5, 0.9] },
+      { key: 'threshold_min', label: 'Threshold time 4wk',     weight: 'med',  unit: 'min', decimals: 0, range: [0, 120]   },
+      { key: 'me_count',      label: 'ME sessions 4wk',        weight: 'med',  unit: '',    decimals: 0, range: [0, 8]     },
+      { key: 'z4_power',      label: 'Avg power ME sessions',  weight: 'low',  unit: 'W',   decimals: 0, range: [150, 350] },
+    ]
+  },
+  {
+    key: 'aerobic_capacity', name: 'Aerobic Capacity', subLabel: 'VO₂max and high-intensity ceiling',
+    blockNotes: {
+      base:        'Not the focus — occasional AC work maintains the ceiling without disrupting base',
+      build:       'AC sessions are secondary to ME — one per week maximum',
+      peak:        'AC sessions sharpen the top end — critical before the race',
+      race:        'No new AC work — peak aerobic capacity should already be banked',
+      preparation: 'No AC work yet — base fitness comes first',
+      default:     'VO₂max estimate and Z5 time reflect the high-intensity ceiling',
+    },
+    metrics: [
+      { key: 'vo2max',      label: 'VO₂max estimate',  weight: 'high', unit: 'ml/kg/min', decimals: 1, range: [30, 70] },
+      { key: 'ac_count',    label: 'AC sessions 4wk',  weight: 'med',  unit: '',          decimals: 0, range: [0, 6]   },
+      { key: 'z5_time_min', label: 'Time at Z5+ 4wk',  weight: 'med',  unit: 'min',       decimals: 0, range: [0, 90]  },
+      { key: 'peak_3min_w', label: 'Peak 3min power',  weight: 'low',  unit: 'W',         decimals: 0, range: [200, 600] },
+    ]
+  },
+  {
+    key: 'sprint_power', name: 'Sprint Power', subLabel: 'Explosive short-duration power',
+    blockNotes: {
+      base:        'Low priority — form sprints once a week keep neural recruitment sharp',
+      build:       'Low priority unless sprint finishes are on the race schedule',
+      peak:        'One short SP session per week activates fast-twitch fibres',
+      race:        'A short sprint set in the final days keeps the recruitment pattern primed',
+      preparation: 'No sprint work yet',
+      default:     'Peak 5s and 10s power reflect the anaerobic ceiling',
+    },
+    metrics: [
+      { key: 'peak_5s_power',  label: 'Peak 5s power',          weight: 'high', unit: 'W', decimals: 0, range: [300, 1200] },
+      { key: 'peak_10s_power', label: 'Peak 10s power',         weight: 'high', unit: 'W', decimals: 0, range: [250, 1000] },
+      { key: 'sp_count',       label: 'SP sessions 4wk',        weight: 'med',  unit: '',  decimals: 0, range: [0, 4]      },
+      { key: 'fs_count',       label: 'Form sprint count 4wk',  weight: 'low',  unit: '',  decimals: 0, range: [0, 8]      },
+    ]
+  },
+];
+
+// Normalize a value to 0–100 using [worst, best] range.
+function abNorm(value, [low, high]) {
+  if (value == null || !isFinite(value)) return null;
+  const range = high - low;
+  if (Math.abs(range) < 0.0001) return 0;
+  return Math.max(0, Math.min(100, Math.round((value - low) / range * 100)));
+}
+
+// Weighted average of normalized scores; redistributes weight across available metrics only.
+function calcAbilityScore(normalizedMap, abilityDef) {
+  const TIER = { high: 0.5, med: 0.35, low: 0.15 };
+  const tierCounts = { high: 0, med: 0, low: 0 };
+  for (const m of abilityDef.metrics) tierCounts[m.weight]++;
+
+  let totalScore = 0, totalWeight = 0;
+  for (const m of abilityDef.metrics) {
+    const ns = normalizedMap[m.key];
+    if (ns == null) continue;
+    const w = TIER[m.weight] / tierCounts[m.weight];
+    totalScore += ns * w;
+    totalWeight += w;
+  }
+  return totalWeight > 0 ? Math.round(totalScore / totalWeight) : null;
+}
+
+// Returns ISO Monday date for a given YYYY-MM-DD string.
+function toMonday(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  const dow = d.getUTCDay(); // 0=Sun
+  d.setUTCDate(d.getUTCDate() - (dow === 0 ? 6 : dow - 1));
+  return d.toISOString().slice(0, 10);
+}
+
+// Returns the last 7 ISO week Mondays (oldest first, current week last).
+function getLast7Mondays() {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const dow = today.getUTCDay();
+  const thisMonday = new Date(today);
+  thisMonday.setUTCDate(today.getUTCDate() - (dow === 0 ? 6 : dow - 1));
+
+  const mondays = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(thisMonday);
+    d.setUTCDate(thisMonday.getUTCDate() - i * 7);
+    mondays.push(d.toISOString().slice(0, 10));
+  }
+  return mondays;
+}
+
+function weekLabel(monday) {
+  const d = new Date(monday + 'T00:00:00Z');
+  return d.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
+
+// Returns the snapshot entry whose date is closest to (and ≤) the given Sunday of a week.
+function nearestSnapshot(snapshotHistory, monday) {
+  const sunday = new Date(monday + 'T00:00:00Z');
+  sunday.setUTCDate(sunday.getUTCDate() + 6);
+  const sundayStr = sunday.toISOString().slice(0, 10);
+  // Snapshot history is DESC, so find the first one ≤ sunday
+  return snapshotHistory.find(s => s.snapshot_date <= sundayStr) ?? null;
+}
+
+// Extract VO2max: prefer lab result, fall back to VDOT (which approximates VO2max).
+function extractVo2max(raw) {
+  if (raw.lab?.structured_data) {
+    const sd = typeof raw.lab.structured_data === 'string'
+      ? JSON.parse(raw.lab.structured_data)
+      : raw.lab.structured_data;
+    const v = sd?.vo2max ?? sd?.VO2max ?? sd?.vo2_max;
+    if (v != null && isFinite(Number(v))) return Number(v);
+  }
+  if (raw.athlete?.vdot != null) return Number(raw.athlete.vdot); // VDOT ≈ VO2max
+  return null;
+}
+
+// Calculate per-week metrics from a slice of sessions plus snapshot/field-test data.
+function calcWeekMetrics(weekSessions, snap, latestTest, vo2max, maxPower1s) {
+  const cycling = weekSessions.filter(s => ['cycling', 'mtb'].includes(s.sport));
+
+  // --- Aerobic endurance ---
+  const ef_7day_avg    = snap ? num(snap.ef_7day_avg)       : null;
+  const decoupling_pct = snap ? num(snap.decoupling_last_long) : null;
+
+  let z1z2_share = null, z5_time_min = null, threshold_min = null;
+  let totalZoneSec = 0, z1z2Sec = 0, z5Sec = 0, z4z5Sec = 0;
+  for (const s of weekSessions) {
+    if (!s.zone_distribution) continue;
+    const zd = typeof s.zone_distribution === 'string'
+      ? JSON.parse(s.zone_distribution)
+      : s.zone_distribution;
+    const z1 = Number(zd.Z1 || 0), z2 = Number(zd.Z2 || 0);
+    const z3 = Number(zd.Z3 || 0), z4 = Number(zd.Z4 || 0);
+    const z5a = Number(zd.Z5a || 0), z5b = Number(zd.Z5b || 0), z5c = Number(zd.Z5c || 0);
+    const total = z1 + z2 + z3 + z4 + z5a + z5b + z5c;
+    totalZoneSec += total;
+    z1z2Sec += z1 + z2;
+    z5Sec   += z5a + z5b + z5c;
+    z4z5Sec += z4 + z5a + z5b + z5c;
+  }
+  if (totalZoneSec > 0) {
+    z1z2_share    = Math.round(z1z2Sec / totalZoneSec * 100);
+    z5_time_min   = Math.round(z5Sec   / 60);
+    threshold_min = Math.round(z4z5Sec / 60);
+  }
+
+  const long_ride_count = weekSessions.filter(s => (s.duration_sec || 0) > 90 * 60).length;
+
+  // --- Muscular force / sprint power (from field test or stream max) ---
+  const peak_5s_power  = latestTest?.sprint_5s_peak_w
+    ? num(latestTest.sprint_5s_peak_w)
+    : (maxPower1s ? num(maxPower1s) : null);
+  const peak_20s_power = latestTest?.sprint_20s_avg_w ? num(latestTest.sprint_20s_avg_w) : null;
+  const peak_10s_power = peak_5s_power ? Math.round(peak_5s_power * 0.90) : null;
+  const peak_3min_w    = latestTest?.vo2max_power_w
+    ? num(latestTest.vo2max_power_w)
+    : (latestTest?.avg_power_20min ? Math.round(num(latestTest.avg_power_20min) * 1.06) : null);
+
+  // --- Session type counts ---
+  const mf_count = weekSessions.filter(s => s.session_type_code?.startsWith('MF')).length;
+  const ss_count = weekSessions.filter(s => s.session_type_code?.startsWith('SS')).length;
+  const me_count = weekSessions.filter(s => s.session_type_code?.startsWith('ME')).length;
+  const ac_count = weekSessions.filter(s => s.session_type_code?.startsWith('AC')).length;
+  const sp_count = weekSessions.filter(s => s.session_type_code?.startsWith('SP')).length;
+  const fs_count = weekSessions.filter(s => s.session_type_code === 'SS1').length;
+
+  // --- Speed skills ---
+  const cadSessions = cycling.filter(s => s.avg_cadence != null);
+  const avg_cadence = cadSessions.length
+    ? Math.round(cadSessions.reduce((s, r) => s + num(r.avg_cadence), 0) / cadSessions.length)
+    : null;
+
+  const viSessions = cycling.filter(s => s.variability_index != null);
+  const vi_avg = viSessions.length
+    ? Math.round(viSessions.reduce((s, r) => s + num(r.variability_index), 0) / viSessions.length * 100) / 100
+    : null;
+
+  const hc_time_hrs = Math.round(ss_count * 0.25 * 10) / 10;
+
+  // --- Climb gradient ---
+  let avg_gradient = null;
+  const climbSess = cycling.filter(s => s.elevation_gain_m != null && s.distance_m > 0);
+  if (climbSess.length) {
+    const gain = climbSess.reduce((s, r) => s + num(r.elevation_gain_m), 0);
+    const dist = climbSess.reduce((s, r) => s + num(r.distance_m), 0);
+    if (dist > 0) avg_gradient = Math.round(gain / dist * 1000) / 10;
+  }
+
+  // --- Muscular endurance ---
+  const longIf = cycling.filter(s => (s.duration_sec || 0) > 90 * 60 && s.intensity_factor_garmin != null);
+  const if_long = longIf.length
+    ? Math.round(longIf.reduce((s, r) => s + num(r.intensity_factor_garmin), 0) / longIf.length * 100) / 100
+    : null;
+
+  const meSess = weekSessions.filter(s => s.session_type_code?.startsWith('ME') && s.avg_power_w != null);
+  const z4_power = meSess.length
+    ? Math.round(meSess.reduce((s, r) => s + num(r.avg_power_w), 0) / meSess.length)
+    : null;
+
+  return {
+    ef_7day_avg, decoupling_pct, z1z2_share, long_ride_count,
+    peak_5s_power, peak_20s_power, mf_count, avg_gradient,
+    avg_cadence, vi_avg, ss_count, hc_time_hrs,
+    if_long, threshold_min, me_count, z4_power,
+    vo2max, ac_count, z5_time_min, peak_3min_w,
+    peak_10s_power, sp_count, fs_count,
+  };
+}
+
+router.get('/fitness/abilities', async (req, res, next) => {
+  try {
+    const athleteId = await getAthleteId(pool);
+    if (!athleteId) return notFound(res, 'Athlete not found');
+
+    const raw = await getAbilitiesData(pool, athleteId);
+    const mondays = getLast7Mondays();
+
+    // Group sessions by ISO week Monday
+    const weekMap = new Map(); // monday → sessions[]
+    for (const s of raw.sessions) {
+      const m = toMonday(s.activity_date);
+      if (!weekMap.has(m)) weekMap.set(m, []);
+      weekMap.get(m).push(s);
+    }
+
+    const latestTest = raw.fieldTests[0] ?? null;
+    const vo2max     = extractVo2max(raw);
+
+    // Per-week metrics for each of the 7 weeks
+    const weeklyMetrics = mondays.map(monday => {
+      const sessions = weekMap.get(monday) ?? [];
+      const snap     = nearestSnapshot(raw.snapshotHistory, monday);
+      return calcWeekMetrics(sessions, snap, latestTest, vo2max, raw.maxPower1s);
+    });
+
+    // Build abilities response
+    const abilities = ABILITY_DEFS.map(def => {
+      // Normalize each week's metrics
+      const weeklyNorm = weeklyMetrics.map(wm => {
+        const n = {};
+        for (const m of def.metrics) n[m.key] = abNorm(wm[m.key], m.range);
+        return n;
+      });
+      const weeklyScores = weeklyNorm.map(n => calcAbilityScore(n, def));
+
+      // Current (most recent) week
+      const currentWm   = weeklyMetrics[weeklyMetrics.length - 1];
+      const currentNorm = weeklyNorm[weeklyNorm.length - 1];
+      const score       = weeklyScores[weeklyScores.length - 1];
+
+      // Trend: avg of last 2 vs prior 2 weeks
+      const recent = weeklyScores.slice(-2).filter(s => s != null);
+      const prior  = weeklyScores.slice(-4, -2).filter(s => s != null);
+      let trend = 'stable';
+      if (recent.length && prior.length) {
+        const diff = (recent.reduce((a, b) => a + b, 0) / recent.length)
+                   - (prior.reduce((a, b) => a + b, 0) / prior.length);
+        if (diff > 3) trend = 'improving';
+        else if (diff < -3) trend = 'declining';
+      }
+
+      const metrics = def.metrics.map(mDef => {
+        const value   = currentWm[mDef.key];
+        const prevVal = weeklyMetrics[weeklyMetrics.length - 2]?.[mDef.key];
+        let metricTrend = 'stable';
+        if (value != null && prevVal != null && prevVal !== 0) {
+          const diff = (value - prevVal) / Math.abs(prevVal) * 100;
+          if (diff > 3) metricTrend = 'up';
+          else if (diff < -3) metricTrend = 'down';
+        }
+        const rounded = value != null
+          ? Math.round(value * 10 ** mDef.decimals) / 10 ** mDef.decimals
+          : null;
+        return {
+          key:             mDef.key,
+          label:           mDef.label,
+          weight:          mDef.weight,
+          unit:            mDef.unit,
+          decimals:        mDef.decimals,
+          value:           rounded,
+          normalizedScore: currentNorm[mDef.key],
+          trend:           metricTrend,
+        };
+      });
+
+      const history = mondays.map((monday, i) => ({
+        weekLabel:  weekLabel(monday),
+        weekDate:   monday,
+        score:      weeklyScores[i],
+        metrics:    def.metrics.reduce((acc, mDef) => {
+          acc[mDef.key] = weeklyMetrics[i][mDef.key];
+          return acc;
+        }, {}),
+      }));
+
+      return {
+        key:        def.key,
+        name:       def.name,
+        subLabel:   def.subLabel,
+        blockNotes: def.blockNotes,
+        score,
+        trend,
+        metrics,
+        history,
+      };
+    });
+
+    res.json({ abilities });
+  } catch (err) { next(err); }
+});
+
+// ---------------------------------------------------------------------------
+// GET /fitness/zone-distribution
+// ---------------------------------------------------------------------------
+
+router.get('/fitness/zone-distribution', async (req, res, next) => {
+  try {
+    const athleteId = await getAthleteId(pool);
+    if (!athleteId) return notFound(res, 'Athlete not found');
+
+    const sportsParam = req.query.sports;
+    const sports = sportsParam
+      ? sportsParam.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+
+    const data = await getZoneDistribution(pool, athleteId, {
+      sports,
+      from: req.query.from,
+      to:   req.query.to,
+    });
+
+    const toSec = v => Math.round(Number(v || 0));
+    const zones = {
+      Z1:  toSec(data.z1_sec),
+      Z2:  toSec(data.z2_sec),
+      Z3:  toSec(data.z3_sec),
+      Z4:  toSec(data.z4_sec),
+      Z5a: toSec(data.z5a_sec),
+      Z5b: toSec(data.z5b_sec),
+      Z5c: toSec(data.z5c_sec),
+      E:   toSec(data.e_sec),
+      M:   toSec(data.m_sec),
+      T:   toSec(data.t_sec),
+      I:   toSec(data.i_sec),
+      R:   toSec(data.r_sec),
+    };
+
+    const totalZoneSec = Object.values(zones).reduce((a, b) => a + b, 0);
+
+    res.json({
+      zones,
+      total_zone_sec:     totalZoneSec,
+      total_duration_sec: toSec(data.total_duration_sec),
+      total_sessions:     Number(data.total_sessions ?? 0),
+      sessions_with_zones: Number(data.sessions_with_zones ?? 0),
+    });
   } catch (err) { next(err); }
 });
 
