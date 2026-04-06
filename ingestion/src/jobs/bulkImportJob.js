@@ -4,7 +4,12 @@ import { tmpdir } from 'os';
 import AdmZip from 'adm-zip';
 import { parseGarminBulkFile } from '../parsers/garminBulkParser.js';
 import { parseFitFile } from '../parsers/fitParser.js';
-import { parseWellnessFile } from '../parsers/garminWellnessParser.js';
+import {
+  parseUDSFile,
+  parseSleepFile,
+  parseHealthStatusFile,
+  mergeWellnessByDate,
+} from '../parsers/garminWellnessParser.js';
 import { alreadyImported, appendLog } from '../utils/bulkImportLog.js';
 import { apiClient } from '../api/client.js';
 import { readFile } from 'fs/promises';
@@ -16,6 +21,7 @@ const log = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 const FITNESS_FOLDER    = 'DI-Connect-Fitness';
 const UPLOADED_FOLDER   = 'DI-Connect-Uploaded-Files';
 const WELLNESS_FOLDER   = 'DI-Connect-Wellness';
+const AGGREGATOR_FOLDER = 'DI-Connect-Aggregator';
 
 // Batch size for posting stream rows
 const STREAM_BATCH = 500;
@@ -143,35 +149,71 @@ export async function processBulkExportFolder(folderPath, processedDir) {
       log.info({ folderPath }, `bulk import: ${UPLOADED_FOLDER} not found — skipping FIT/zip path`);
     }
 
-    // === STEP 3: Wellness ===
+    // === STEP 3: Wellness — collect from Aggregator + Wellness, merge by date ===
+    const allUdsEntries    = [];
+    const allSleepEntries  = [];
+    const allHealthEntries = [];
+
+    // 3a. UDS daily summaries from DI-Connect-Aggregator (body battery, stress, resting HR)
+    const aggregatorPath = await findSubfolder(folderPath, AGGREGATOR_FOLDER);
+    if (aggregatorPath) {
+      const udsFiles = (await listFilesByExt(aggregatorPath, '.json'))
+        .filter(f => basename(f).toLowerCase().startsWith('udsfile'));
+      log.info({ count: udsFiles.length }, 'bulk import: DI-Connect-Aggregator — UDS files found');
+      for (const filePath of udsFiles) {
+        try {
+          const raw = JSON.parse(await readFile(filePath, 'utf8'));
+          allUdsEntries.push(...parseUDSFile(raw));
+        } catch {
+          log.warn({ filePath }, 'bulk import: failed to read UDS file');
+        }
+      }
+      log.info({ days: allUdsEntries.length }, 'bulk import: UDS entries parsed');
+    } else {
+      log.info({ folderPath }, `bulk import: ${AGGREGATOR_FOLDER} not found — skipping UDS`);
+    }
+
+    // 3b. Sleep + health status from DI-Connect-Wellness
     const wellnessPath = await findSubfolder(folderPath, WELLNESS_FOLDER);
     if (wellnessPath) {
       const jsonFiles = await listFilesByExt(wellnessPath, '.json');
-      log.info({ wellnessPath, count: jsonFiles.length }, 'bulk import: DI-Connect-Wellness — files found');
-
+      log.info({ count: jsonFiles.length }, 'bulk import: DI-Connect-Wellness — files found');
       for (const filePath of jsonFiles) {
-        let raw;
+        const name = basename(filePath).toLowerCase();
         try {
-          const text = await readFile(filePath, 'utf8');
-          raw = JSON.parse(text);
+          const raw = JSON.parse(await readFile(filePath, 'utf8'));
+          if (name.includes('sleepdata')) {
+            allSleepEntries.push(...parseSleepFile(raw));
+          } else if (name.includes('healthstatusdata')) {
+            allHealthEntries.push(...parseHealthStatusFile(raw));
+          }
+          // Skip non-wellness files (AbnormalHr, JetLag, etc.)
         } catch {
           log.warn({ filePath }, 'bulk import: failed to read wellness file');
-          continue;
-        }
-
-        const days = parseWellnessFile(raw);
-        for (const day of days) {
-          try {
-            const result = await apiClient.post('/health/daily', day);
-            if (result === null) wellnessSkip++;
-            else wellnessSuccess++;
-          } catch (err) {
-            log.warn({ date: day.date, err: err.message }, 'bulk import: wellness write failed');
-          }
         }
       }
+      log.info(
+        { sleepDays: allSleepEntries.length, healthDays: allHealthEntries.length },
+        'bulk import: Wellness entries parsed'
+      );
     } else {
-      log.info({ folderPath }, `bulk import: ${WELLNESS_FOLDER} not found — skipping wellness`);
+      log.info({ folderPath }, `bulk import: ${WELLNESS_FOLDER} not found — skipping sleep/health`);
+    }
+
+    // 3c. Merge all wellness sources by date and post
+    const mergedMap = mergeWellnessByDate(allUdsEntries, allSleepEntries, allHealthEntries);
+    log.info({ totalDays: mergedMap.size }, 'bulk import: wellness days merged, posting to /health/daily');
+
+    for (const day of mergedMap.values()) {
+      // Skip days with only the date key (no actual wellness data)
+      if (Object.keys(day).length <= 1) continue;
+      try {
+        const result = await apiClient.post('/health/daily', day);
+        if (result === null) wellnessSkip++;
+        else wellnessSuccess++;
+      } catch (err) {
+        log.warn({ date: day.date, err: err.message }, 'bulk import: wellness write failed');
+      }
     }
 
     log.info(

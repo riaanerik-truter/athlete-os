@@ -63,8 +63,8 @@ export function parseGarminActivity(raw) {
   // avgBikeCadence (not averageBikingCadenceInRevPerMinute),
   // avgRunCadence (not averageRunningCadenceInStepsPerMinute)
   const avgHr = raw.avgHr ?? null;
-  const avgPowerW = raw.avgPower ?? null;
-  const normalizedPowerW = raw.normPower ?? null;
+  const avgPowerW = raw.avgPower != null ? Math.round(raw.avgPower) : null;
+  const normalizedPowerW = raw.normPower != null ? Math.round(raw.normPower) : null;
 
   // EF (efficiency factor): use normalised power when available so the value
   // is comparable with ef_trainingpeaks (which always uses NP).
@@ -90,9 +90,47 @@ export function parseGarminActivity(raw) {
     ? new Date(startTimeMs + durationSeconds * 1000).toISOString()
     : null;
 
-  // API schema field names (verified against completedSessionCreateSchema):
-  return {
-    garmin_activity_id: String(raw.activityId),
+  // Zone distribution: HR zones hrTimeInZone_0..6 (ms → seconds)
+  // and power zones powerTimeInZone_0..7 (ms → seconds)
+  // Friel HR zones: Z1=idx0, Z2=idx1, Z3=idx2, Z4=idx3, Z5a=idx4, Z5b=idx5, Z5c=idx6
+  // Power zones: pZ1..pZ8 (Coggan 8-zone model from Garmin)
+  const hrZoneKeys  = ['Z1','Z2','Z3','Z4','Z5a','Z5b','Z5c'];
+  const pwrZoneKeys = ['pZ1','pZ2','pZ3','pZ4','pZ5','pZ6','pZ7','pZ8'];
+
+  const zoneDistribution = {};
+  let hasZones = false;
+
+  for (let i = 0; i < 7; i++) {
+    const ms = raw[`hrTimeInZone_${i}`];
+    if (ms != null && ms > 0) {
+      zoneDistribution[hrZoneKeys[i]] = Math.round(ms / 1000);
+      hasZones = true;
+    }
+  }
+  for (let i = 0; i < 8; i++) {
+    const ms = raw[`powerTimeInZone_${i}`];
+    if (ms != null && ms > 0) {
+      zoneDistribution[pwrZoneKeys[i]] = Math.round(ms / 1000);
+      hasZones = true;
+    }
+  }
+
+  // Variability index: NP / avg power (>1 means more variable effort)
+  const variabilityIndex = normalizedPowerW != null && avgPowerW != null && avgPowerW > 0
+    ? Math.round((normalizedPowerW / avgPowerW) * 1000) / 1000
+    : null;
+
+  // TSS: activityTrainingLoad is the correct field in summarizedActivities export
+  // (trainingStressScore does not exist in bulk export — only in TP-synced data)
+  const tss = raw.activityTrainingLoad ?? raw.trainingStressScore ?? null;
+
+  // session_notes: store the location name when available
+  const sessionNotes = raw.locationName ?? null;
+
+  // Build payload and strip null/undefined values so Zod optional fields
+  // don't receive explicit nulls (which fail z.number() validation).
+  const payload = {
+    garmin_activity_id:   String(raw.activityId),
     sport,
     activity_date:        activityDate,
     start_time:           startTime,
@@ -106,9 +144,15 @@ export function parseGarminActivity(raw) {
     avg_power_w:          avgPowerW,
     normalized_power_w:   normalizedPowerW,
     avg_cadence:          raw.avgBikeCadence ?? raw.avgRunCadence ?? null,
-    tss:                  raw.trainingStressScore ?? null,
+    tss:                  tss,
+    variability_index:    variabilityIndex,
+    zone_distribution:    hasZones ? zoneDistribution : null,
+    session_notes:        sessionNotes,
     ef_garmin_calculated: efGarmin,
     ef_source_used:       efGarmin != null ? 'garmin' : null,
     data_source_primary:  'garmin',
   };
+
+  // Strip nulls — Zod optional fields reject explicit null values
+  return Object.fromEntries(Object.entries(payload).filter(([, v]) => v != null));
 }
