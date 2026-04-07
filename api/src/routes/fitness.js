@@ -256,7 +256,7 @@ router.get('/fitness/snapshot', async (req, res, next) => {
       decoupling_last_long: num(snap.decoupling_last_long),
       resting_hr_avg:       snap.resting_hr_avg,
       hrv_7day_avg:         num(snap.hrv_7day_avg),
-      readiness_score:      snap.readiness_score,
+      readiness_score:      num(snap.readiness_score),
       weekly_volume_hrs:    num(snap.weekly_volume_hrs),
       weekly_tss:           num(snap.weekly_tss),
       ytd_volume_hrs:       num(snap.ytd_volume_hrs)
@@ -274,8 +274,9 @@ router.get('/fitness/snapshots', async (req, res, next) => {
     if (!athleteId) return notFound(res, 'Athlete not found');
 
     const snaps = await getSnapshotHistory(pool, athleteId, {
-      from: req.query.from,
-      to:   req.query.to
+      from:  req.query.from,
+      to:    req.query.to,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
     });
 
     res.json({
@@ -428,8 +429,9 @@ router.get('/health/daily', async (req, res, next) => {
     if (!athleteId) return notFound(res, 'Athlete not found');
 
     const metrics = await getDailyMetrics(pool, athleteId, {
-      from: req.query.from,
-      to:   req.query.to
+      from:  req.query.from,
+      to:    req.query.to,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
     });
 
     res.json({
@@ -971,8 +973,16 @@ router.get('/fitness/abilities', async (req, res, next) => {
     const weeklyMetrics = mondays.map(monday => {
       const sessions = weekMap.get(monday) ?? [];
       const snap     = nearestSnapshot(raw.snapshotHistory, monday);
-      return calcWeekMetrics(sessions, snap, latestTest, vo2max, raw.maxPower1s);
+      return { ...calcWeekMetrics(sessions, snap, latestTest, vo2max, raw.maxPower1s), _sessionCount: sessions.length };
     });
+
+    // "Current" = most recent week with sessions; fall back to last week if this week just started
+    const currentIdx = (() => {
+      for (let i = weeklyMetrics.length - 1; i >= 0; i--) {
+        if (weeklyMetrics[i]._sessionCount > 0) return i;
+      }
+      return weeklyMetrics.length - 1; // all empty — use last
+    })();
 
     // Build abilities response
     const abilities = ABILITY_DEFS.map(def => {
@@ -984,10 +994,10 @@ router.get('/fitness/abilities', async (req, res, next) => {
       });
       const weeklyScores = weeklyNorm.map(n => calcAbilityScore(n, def));
 
-      // Current (most recent) week
-      const currentWm   = weeklyMetrics[weeklyMetrics.length - 1];
-      const currentNorm = weeklyNorm[weeklyNorm.length - 1];
-      const score       = weeklyScores[weeklyScores.length - 1];
+      // Current = most recent week with data
+      const currentWm   = weeklyMetrics[currentIdx];
+      const currentNorm = weeklyNorm[currentIdx];
+      const score       = weeklyScores[currentIdx];
 
       // Trend: avg of last 2 vs prior 2 weeks
       const recent = weeklyScores.slice(-2).filter(s => s != null);
@@ -1072,6 +1082,7 @@ router.get('/fitness/zone-distribution', async (req, res, next) => {
 
     const toSec = v => Math.round(Number(v || 0));
     const zones = {
+      // HR zones (Friel Z1-Z5c)
       Z1:  toSec(data.z1_sec),
       Z2:  toSec(data.z2_sec),
       Z3:  toSec(data.z3_sec),
@@ -1079,6 +1090,14 @@ router.get('/fitness/zone-distribution', async (req, res, next) => {
       Z5a: toSec(data.z5a_sec),
       Z5b: toSec(data.z5b_sec),
       Z5c: toSec(data.z5c_sec),
+      // Power zones (Garmin pZ1-pZ6, Coggan-aligned)
+      pZ1: toSec(data.pz1_sec),
+      pZ2: toSec(data.pz2_sec),
+      pZ3: toSec(data.pz3_sec),
+      pZ4: toSec(data.pz4_sec),
+      pZ5: toSec(data.pz5_sec),
+      pZ6: toSec(data.pz6_sec),
+      // Daniels pace zones (running)
       E:   toSec(data.e_sec),
       M:   toSec(data.m_sec),
       T:   toSec(data.t_sec),

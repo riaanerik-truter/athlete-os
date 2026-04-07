@@ -65,14 +65,14 @@ const ZONE_MODELS = [
     id: 'ftp',
     label: 'Power / FTP',
     availableFor: ['cycling', 'mtb'],
+    // Keys match Garmin's pZ1-pZ6 power zone export in zone_distribution JSONB
     zones: [
-      { key: 'Z1',  label: 'Z1 <56%',   color: '#60A5FA', group: 'endurance' },
-      { key: 'Z2',  label: 'Z2 56-75%', color: '#34D399', group: 'endurance' },
-      { key: 'Z3',  label: 'Z3 76-90%', color: '#FBBF24', group: 'tempo' },
-      { key: 'Z4',  label: 'Z4 91-105%',color: '#F97316', group: 'tempo' },
-      { key: 'Z5a', label: 'Z5a',        color: '#EF4444', group: 'highintensity' },
-      { key: 'Z5b', label: 'Z5b',        color: '#DC2626', group: 'highintensity' },
-      { key: 'Z5c', label: 'Z5c',        color: '#991B1B', group: 'highintensity' },
+      { key: 'pZ1', label: 'Z1 Active Recovery', color: '#60A5FA', group: 'endurance' },
+      { key: 'pZ2', label: 'Z2 Endurance',        color: '#34D399', group: 'endurance' },
+      { key: 'pZ3', label: 'Z3 Tempo',            color: '#FBBF24', group: 'tempo' },
+      { key: 'pZ4', label: 'Z4 Threshold',        color: '#F97316', group: 'tempo' },
+      { key: 'pZ5', label: 'Z5 VO2max',           color: '#EF4444', group: 'highintensity' },
+      { key: 'pZ6', label: 'Z6 Anaerobic',        color: '#991B1B', group: 'highintensity' },
     ],
     groups: [
       { key: 'endurance',     label: 'Endurance (Z1-Z2)', target: 70 },

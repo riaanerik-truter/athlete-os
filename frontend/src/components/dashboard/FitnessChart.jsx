@@ -32,7 +32,9 @@ const EMPTY_MSG_CLASS = 'flex items-center justify-center h-48 text-sm text-gray
  *   weeksBack number — how many weeks to show (default 12)
  */
 export default function FitnessChart({ periods = [], weeksBack = 12 }) {
-  const { data: raw, loading, error } = useFetch('/fitness/snapshots')
+  // Fetch 1 year of weekly snapshots (52) so the chart has sufficient history
+  // regardless of the weeksBack display setting (max 24 weeks)
+  const { data: raw, loading, error } = useFetch('/fitness/snapshots?limit=52')
 
   if (loading) return <div className={EMPTY_MSG_CLASS}>Loading fitness data…</div>
   if (error)   return <div className={EMPTY_MSG_CLASS}>Could not load fitness data</div>

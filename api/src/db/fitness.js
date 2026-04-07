@@ -23,24 +23,32 @@ export async function getLatestSnapshot(pool, athleteId) {
  * Returns snapshot history for CTL/ATL/TSB charting.
  * from/to are ISO date strings (YYYY-MM-DD).
  */
-export async function getSnapshotHistory(pool, athleteId, { from, to } = {}) {
+export async function getSnapshotHistory(pool, athleteId, { from, to, limit } = {}) {
   const conditions = ['athlete_id = $1'];
   const values = [athleteId];
 
   if (from) { values.push(from); conditions.push(`snapshot_date >= $${values.length}`); }
   if (to)   { values.push(to);   conditions.push(`snapshot_date <= $${values.length}`); }
 
+  // When limit is given without from/to, return the most recent N rows ordered ASC
+  const limitClause = (limit && !from && !to) ? `LIMIT ${Number(limit)}` : '';
+  const orderDir    = (limit && !from && !to) ? 'DESC' : 'ASC';
+
   const result = await pool.query(`
-    SELECT
-      snapshot_date::text AS snapshot_date,
-      week_id,
-      ctl, atl, tsb,
-      ftp_current, w_per_kg, vdot_current, css_current_sec,
-      ef_7day_avg, ef_trend, decoupling_last_long,
-      resting_hr_avg, hrv_7day_avg, readiness_score,
-      weekly_volume_hrs, weekly_tss, ytd_volume_hrs
-    FROM fitness_snapshot
-    WHERE ${conditions.join(' AND ')}
+    SELECT * FROM (
+      SELECT
+        snapshot_date::text AS snapshot_date,
+        week_id,
+        ctl, atl, tsb,
+        ftp_current, w_per_kg, vdot_current, css_current_sec,
+        ef_7day_avg, ef_trend, decoupling_last_long,
+        resting_hr_avg, hrv_7day_avg, readiness_score,
+        weekly_volume_hrs, weekly_tss, ytd_volume_hrs
+      FROM fitness_snapshot
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY snapshot_date ${orderDir}
+      ${limitClause}
+    ) sub
     ORDER BY snapshot_date ASC
   `, values);
   return result.rows;
@@ -253,12 +261,27 @@ export async function createLabResult(pool, athleteId, data) {
  * Queries by the DATE column rather than the TIMESTAMPTZ partition key
  * for readability — the unique index on (athlete_id, date) keeps this fast.
  */
-export async function getDailyMetrics(pool, athleteId, { from, to } = {}) {
+export async function getDailyMetrics(pool, athleteId, { from, to, limit } = {}) {
   const conditions = ['athlete_id = $1'];
   const values = [athleteId];
 
   if (from) { values.push(from); conditions.push(`date >= $${values.length}`); }
   if (to)   { values.push(to);   conditions.push(`date <= $${values.length}`); }
+
+  // When limit is given without from/to, fetch the most recent N rows (order DESC, then re-sort ASC)
+  if (limit && !from && !to) {
+    values.push(Number(limit));
+    const result = await pool.query(`
+      SELECT * FROM (
+        SELECT * FROM daily_metrics
+        WHERE ${conditions.join(' AND ')}
+        ORDER BY date DESC
+        LIMIT $${values.length}
+      ) sub
+      ORDER BY date ASC
+    `, values);
+    return result.rows;
+  }
 
   const result = await pool.query(`
     SELECT *
@@ -352,7 +375,6 @@ export async function getAbilitiesData(pool, athleteId) {
       LEFT JOIN session_type st ON st.id = cs.session_type_id
       WHERE cs.athlete_id = $1
         AND cs.activity_date >= CURRENT_DATE - INTERVAL '8 weeks'
-        AND cs.deleted_at IS NULL
       ORDER BY cs.activity_date ASC
     `, [athleteId]),
 
@@ -388,12 +410,12 @@ export async function getAbilitiesData(pool, athleteId) {
     pool.query(`SELECT ftp_watts, vdot, weight_kg FROM athlete LIMIT 1`),
 
     pool.query(`
-      SELECT MAX(ws.power) AS max_power_1s
+      SELECT MAX(ws.power_w) AS max_power_1s
       FROM workout_stream ws
-      JOIN completed_session cs ON cs.id = ws.session_id
+      JOIN completed_session cs ON cs.garmin_activity_id = ws.garmin_activity_id
       WHERE cs.athlete_id = $1
         AND cs.activity_date >= CURRENT_DATE - INTERVAL '8 weeks'
-        AND ws.power IS NOT NULL
+        AND ws.power_w IS NOT NULL
     `, [athleteId]),
   ]);
 
@@ -415,7 +437,7 @@ export async function getAbilitiesData(pool, athleteId) {
  * Aggregates zone_distribution JSONB from completed sessions for a date range and sport filter.
  */
 export async function getZoneDistribution(pool, athleteId, { sports = [], from, to } = {}) {
-  const conditions = ['cs.athlete_id = $1', 'cs.deleted_at IS NULL'];
+  const conditions = ['cs.athlete_id = $1'];
   const values = [athleteId];
 
   if (from) { values.push(from); conditions.push(`cs.activity_date >= $${values.length}`); }
@@ -427,6 +449,7 @@ export async function getZoneDistribution(pool, athleteId, { sports = [], from, 
 
   const result = await pool.query(`
     SELECT
+      -- HR zones (Friel, Z1-Z5c)
       COALESCE(SUM((cs.zone_distribution->>'Z1')::float),  0) AS z1_sec,
       COALESCE(SUM((cs.zone_distribution->>'Z2')::float),  0) AS z2_sec,
       COALESCE(SUM((cs.zone_distribution->>'Z3')::float),  0) AS z3_sec,
@@ -434,6 +457,14 @@ export async function getZoneDistribution(pool, athleteId, { sports = [], from, 
       COALESCE(SUM((cs.zone_distribution->>'Z5a')::float), 0) AS z5a_sec,
       COALESCE(SUM((cs.zone_distribution->>'Z5b')::float), 0) AS z5b_sec,
       COALESCE(SUM((cs.zone_distribution->>'Z5c')::float), 0) AS z5c_sec,
+      -- Power zones (Garmin pZ1-pZ6, Coggan-aligned)
+      COALESCE(SUM((cs.zone_distribution->>'pZ1')::float), 0) AS pz1_sec,
+      COALESCE(SUM((cs.zone_distribution->>'pZ2')::float), 0) AS pz2_sec,
+      COALESCE(SUM((cs.zone_distribution->>'pZ3')::float), 0) AS pz3_sec,
+      COALESCE(SUM((cs.zone_distribution->>'pZ4')::float), 0) AS pz4_sec,
+      COALESCE(SUM((cs.zone_distribution->>'pZ5')::float), 0) AS pz5_sec,
+      COALESCE(SUM((cs.zone_distribution->>'pZ6')::float), 0) AS pz6_sec,
+      -- Daniels pace zones (running, E/M/T/I/R)
       COALESCE(SUM((cs.zone_distribution->>'E')::float),   0) AS e_sec,
       COALESCE(SUM((cs.zone_distribution->>'M')::float),   0) AS m_sec,
       COALESCE(SUM((cs.zone_distribution->>'T')::float),   0) AS t_sec,

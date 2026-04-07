@@ -65,19 +65,19 @@ function last(arr) {
 }
 
 export default function HealthMetrics() {
-  // Last 14 days of health data
+  // Last 14 days of health data — use limit param (supported since API fix)
   const { data: res, loading, error } = useFetch('/health/daily?limit=14')
 
   const entries = Array.isArray(res) ? res : (res?.data ?? [])
   const sorted  = [...entries].sort((a, b) => new Date(a.date ?? a.metric_date) - new Date(b.date ?? b.metric_date))
 
-  // Extract per-metric arrays
-  const hrv         = sorted.map(e => e.hrv_nightly).filter(v => v != null)
+  // Extract per-metric arrays — field names match daily_metrics table columns
+  const hrv         = sorted.map(e => e.hrv_nightly_avg).filter(v => v != null)
   const restingHr   = sorted.map(e => e.resting_hr).filter(v => v != null)
   const bodyBattery = sorted.map(e => e.body_battery_morning).filter(v => v != null)
   const sleep       = sorted.map(e => e.sleep_duration_hrs).filter(v => v != null)
   const sleepScore  = sorted.map(e => e.sleep_score).filter(v => v != null)
-  const stress      = sorted.map(e => e.stress_score).filter(v => v != null)
+  const stress      = sorted.map(e => e.stress_avg).filter(v => v != null)
 
   const latestEntry = sorted[sorted.length - 1]
 
